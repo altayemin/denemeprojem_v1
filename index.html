@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SUBÜ - Canlı Deney Verileri</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -20,6 +21,22 @@
     h1 {
       margin: 0;
       font-size: 24px;
+    }
+    .controls {
+      margin-top: 30px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background-color: #0055aa;
+      color: white;
+    }
+    button:hover {
+      background-color: #003f7f;
     }
     .container {
       display: flex;
@@ -45,6 +62,10 @@
       font-size: 28px;
       color: #222;
     }
+    .chart-container {
+      max-width: 800px;
+      margin: 40px auto;
+    }
     footer {
       margin-top: 50px;
       color: #666;
@@ -58,19 +79,31 @@
     <p>Canlı Deney Verileri</p>
   </header>
 
+  <div class="controls">
+    <button onclick="startExperiment()">Deney Başlat</button>
+    <button onclick="stopExperiment()">Deney Durdur</button>
+  </div>
+
   <div class="container">
     <div class="card">
       <div class="label">Zaman</div>
-      <div id="time" class="value">Yükleniyor...</div>
+      <div id="time" class="value">-</div>
     </div>
     <div class="card">
       <div class="label">Sıcaklık (°C)</div>
-      <div id="temp" class="value">Yükleniyor...</div>
+      <div id="temp" class="value">-</div>
     </div>
     <div class="card">
       <div class="label">Nem (%)</div>
-      <div id="humidity" class="value">Yükleniyor...</div>
+      <div id="humidity" class="value">-</div>
     </div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="tempChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <canvas id="humChart"></canvas>
   </div>
 
   <footer>
@@ -79,24 +112,92 @@
 
   <script>
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
+    
+    let intervalId = null;
+
+    const timeElem = document.getElementById("time");
+    const tempElem = document.getElementById("temp");
+    const humidityElem = document.getElementById("humidity");
+
+    const tempChart = new Chart(document.getElementById('tempChart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Sıcaklık (°C)',
+          data: [],
+          borderColor: 'red',
+          fill: false,
+          tension: 0.3
+        }]
+      },
+      options: {
+        scales: {
+          x: { title: { display: true, text: 'Zaman' }},
+          y: { beginAtZero: true }
+        }
+      }
+    });
+
+    const humChart = new Chart(document.getElementById('humChart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Nem (%)',
+          data: [],
+          borderColor: 'blue',
+          fill: false,
+          tension: 0.3
+        }]
+      },
+      options: {
+        scales: {
+          x: { title: { display: true, text: 'Zaman' }},
+          y: { beginAtZero: true }
+        }
+      }
+    });
 
     async function fetchLatestData() {
       try {
-        const res = await fetch(sheetUrl);
+        const res = await fetch(sheetUrl + '&rand=' + Math.random()); // Cache engelleme
         const text = await res.text();
         const rows = text.trim().split("\n").map(row => row.split(","));
         const lastRow = rows[rows.length - 1];
 
-        document.getElementById("time").textContent = lastRow[0] || "-";
-        document.getElementById("temp").textContent = lastRow[1] || "-";
-        document.getElementById("humidity").textContent = lastRow[2] || "-";
-      } catch (e) {
-        console.error("Veri alınamadı:", e);
+        const [time, temp, humidity] = lastRow;
+
+        if (!time || !temp || !humidity) return;
+
+        timeElem.textContent = time;
+        tempElem.textContent = temp;
+        humidityElem.textContent = humidity;
+
+        tempChart.data.labels.push(time);
+        tempChart.data.datasets[0].data.push(parseFloat(temp));
+        tempChart.update();
+
+        humChart.data.labels.push(time);
+        humChart.data.datasets[0].data.push(parseFloat(humidity));
+        humChart.update();
+
+      } catch (error) {
+        console.error("Veri alınamadı:", error);
       }
     }
 
-    fetchLatestData();
-    setInterval(fetchLatestData, 5000); // 5 saniyede bir yenile
+    function startExperiment() {
+      if (!intervalId) {
+        fetchLatestData(); // Hemen başla
+        intervalId = setInterval(fetchLatestData, 5000); // 5 sn
+      }
+    }
+
+    function stopExperiment() {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
   </script>
 </body>
 </html>
