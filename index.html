@@ -117,6 +117,7 @@
   <script>
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
     let lastTimestamp = "";
+    let lastCheckedRow = "";
     let intervalId = null;
     let data = [];
 
@@ -166,13 +167,17 @@
         const lastRow = rows[rows.length - 1];
         const [time, temp, humidity] = lastRow;
 
-        if (time !== lastTimestamp) {
+        // Son satır ile karşılaştırma yapıyoruz
+        if (time !== lastTimestamp && lastCheckedRow !== lastRow.join(",")) {
           lastTimestamp = time;
+          lastCheckedRow = lastRow.join(",");
 
+          // Verileri güncelle
           document.getElementById("time").textContent = time || "-";
           document.getElementById("temp").textContent = temp || "-";
           document.getElementById("humidity").textContent = humidity || "-";
 
+          // Yeni veriyi ekle
           addData(time, parseFloat(temp), parseFloat(humidity));
           appendToDataList(time, temp, humidity);
         }
@@ -222,6 +227,7 @@
       if (confirm("Deneyi sıfırlamak istediğinize emin misiniz?")) {
         data = [];
         lastTimestamp = "";
+        lastCheckedRow = "";
         document.getElementById("time").textContent = "Yükleniyor...";
         document.getElementById("temp").textContent = "Yükleniyor...";
         document.getElementById("humidity").textContent = "Yükleniyor...";
@@ -236,6 +242,7 @@
       // PDF kaydetme fonksiyonu buraya gelecek
       console.log("PDF kaydedilecek...");
     });
+
   </script>
 </body>
 </html>
