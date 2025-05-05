@@ -155,7 +155,7 @@
         if (timeStr === lastTime) {
           return; // Aynı veri, ekleme
         }
-        lastTime = timeStr;
+        lastTime = timeStr;  // Yeni veri alındığında lastTime'ı güncelle
 
         document.getElementById("time").textContent = timeStr;
         document.getElementById("temp").textContent = tempStr;
@@ -239,6 +239,7 @@
   </script>
 </body>
 </html>
+
 
 
 
