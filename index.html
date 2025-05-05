@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SUBÜ - Canlı Deney Verileri</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -20,6 +21,22 @@
     h1 {
       margin: 0;
       font-size: 24px;
+    }
+    .controls {
+      margin-top: 30px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background-color: #0055aa;
+      color: white;
+    }
+    button:hover {
+      background-color: #003f7f;
     }
     .container {
       display: flex;
@@ -45,15 +62,16 @@
       font-size: 28px;
       color: #222;
     }
+    .chart-container {
+      max-width: 800px;
+      margin: 40px auto;
+    }
     footer {
       margin-top: 50px;
       color: #666;
       font-size: 14px;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <header>
@@ -61,45 +79,31 @@
     <p>Canlı Deney Verileri</p>
   </header>
 
+  <div class="controls">
+    <button onclick="startExperiment()">Deney Başlat</button>
+    <button onclick="stopExperiment()">Deney Durdur</button>
+  </div>
+
   <div class="container">
     <div class="card">
       <div class="label">Zaman</div>
-      <div id="time" class="value">Yükleniyor...</div>
+      <div id="time" class="value">-</div>
     </div>
     <div class="card">
       <div class="label">Sıcaklık (°C)</div>
-      <div id="temp" class="value">Yükleniyor...</div>
+      <div id="temp" class="value">-</div>
     </div>
     <div class="card">
       <div class="label">Nem (%)</div>
-      <div id="humidity" class="value">Yükleniyor...</div>
+      <div id="humidity" class="value">-</div>
     </div>
   </div>
 
-  <div style="margin: 30px;">
-    <button id="startBtn">Deneyi Başlat</button>
-    <button id="stopBtn" disabled>Deneyi Durdur</button>
-    <button id="saveBtn" disabled>Kaydet</button>
-    <button id="resetBtn">Sıfırla</button>
+  <div class="chart-container">
+    <canvas id="tempChart"></canvas>
   </div>
-
-  <div id="chartContainer" style="max-width: 900px; margin: auto;">
-    <canvas id="dataChart"></canvas>
-  </div>
-
-  <div style="max-width: 800px; margin: 40px auto; overflow-x: auto;">
-    <h2>Canlı Veri Listesi</h2>
-    <table id="dataTable" border="1" style="width: 100%; border-collapse: collapse; background: white;">
-      <thead>
-        <tr style="background-color: #003366; color: white;">
-          <th>Zaman</th>
-          <th>Sıcaklık (°C)</th>
-          <th>Nem (%)</th>
-        </tr>
-      </thead>
-      <tbody id="dataBody">
-      </tbody>
-    </table>
+  <div class="chart-container">
+    <canvas id="humChart"></canvas>
   </div>
 
   <footer>
@@ -108,133 +112,96 @@
 
   <script>
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
-
+    
     let intervalId = null;
-    let temperatureChart = null;
-    const labels = [];
-    const tempData = [];
-    const humidityData = [];
 
-    const ctx = document.getElementById('dataChart').getContext('2d');
-    temperatureChart = new Chart(ctx, {
+    const timeElem = document.getElementById("time");
+    const tempElem = document.getElementById("temp");
+    const humidityElem = document.getElementById("humidity");
+
+    const tempChart = new Chart(document.getElementById('tempChart'), {
       type: 'line',
       data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Sıcaklık (°C)',
-            data: tempData,
-            borderColor: 'red',
-            fill: false
-          },
-          {
-            label: 'Nem (%)',
-            data: humidityData,
-            borderColor: 'blue',
-            fill: false
-          }
-        ]
+        labels: [],
+        datasets: [{
+          label: 'Sıcaklık (°C)',
+          data: [],
+          borderColor: 'red',
+          fill: false,
+          tension: 0.3
+        }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false
+        scales: {
+          x: { title: { display: true, text: 'Zaman' }},
+          y: { beginAtZero: true }
+        }
+      }
+    });
+
+    const humChart = new Chart(document.getElementById('humChart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Nem (%)',
+          data: [],
+          borderColor: 'blue',
+          fill: false,
+          tension: 0.3
+        }]
+      },
+      options: {
+        scales: {
+          x: { title: { display: true, text: 'Zaman' }},
+          y: { beginAtZero: true }
+        }
       }
     });
 
     async function fetchLatestData() {
       try {
-        const res = await fetch(sheetUrl);
+        const res = await fetch(sheetUrl + '&rand=' + Math.random()); // Cache engelleme
         const text = await res.text();
         const rows = text.trim().split("\n").map(row => row.split(","));
         const lastRow = rows[rows.length - 1];
 
-        const time = lastRow[0] || "-";
-        const temp = lastRow[1] || "-";
-        const humidity = lastRow[2] || "-";
+        const [time, temp, humidity] = lastRow;
 
-        document.getElementById("time").textContent = time;
-        document.getElementById("temp").textContent = temp;
-        document.getElementById("humidity").textContent = humidity;
+        if (!time || !temp || !humidity) return;
 
-        // Tabloya veri ekle
-        const tableBody = document.getElementById("dataBody");
-        const newRow = document.createElement("tr");
-        newRow.innerHTML = `
-          <td>${time}</td>
-          <td>${temp}</td>
-          <td>${humidity}</td>
-        `;
-        tableBody.appendChild(newRow);
+        timeElem.textContent = time;
+        tempElem.textContent = temp;
+        humidityElem.textContent = humidity;
 
-        // Grafik verisini güncelle
-        labels.push(time);
-        tempData.push(parseFloat(temp));
-        humidityData.push(parseFloat(humidity));
-        temperatureChart.update();
+        tempChart.data.labels.push(time);
+        tempChart.data.datasets[0].data.push(parseFloat(temp));
+        tempChart.update();
 
-      } catch (e) {
-        console.error("Veri alınamadı:", e);
+        humChart.data.labels.push(time);
+        humChart.data.datasets[0].data.push(parseFloat(humidity));
+        humChart.update();
+
+      } catch (error) {
+        console.error("Veri alınamadı:", error);
       }
     }
 
-    document.getElementById("startBtn").addEventListener("click", () => {
+    function startExperiment() {
       if (!intervalId) {
-        fetchLatestData();
-        intervalId = setInterval(fetchLatestData, 5000);
-        document.getElementById("startBtn").disabled = true;
-        document.getElementById("stopBtn").disabled = false;
+        fetchLatestData(); // Hemen başla
+        intervalId = setInterval(fetchLatestData, 5000); // 5 sn
       }
-    });
+    }
 
-    document.getElementById("stopBtn").addEventListener("click", () => {
+    function stopExperiment() {
       clearInterval(intervalId);
       intervalId = null;
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("stopBtn").disabled = true;
-      document.getElementById("saveBtn").disabled = false;
-    });
-
-    document.getElementById("saveBtn").addEventListener("click", async () => {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF();
-      const targetAreas = [
-        document.querySelector(".container"),
-        document.querySelector("#chartContainer"),
-        document.querySelector("table")
-      ];
-      let yOffset = 10;
-      for (const area of targetAreas) {
-        if (!area) continue;
-        const canvas = await html2canvas(area);
-        const imgData = canvas.toDataURL("image/png");
-        const imgWidth = 180;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, "PNG", 15, yOffset, imgWidth, imgHeight);
-        yOffset += imgHeight + 10;
-      }
-      pdf.save("deney_raporu.pdf");
-    });
-
-    document.getElementById("resetBtn").addEventListener("click", () => {
-      const confirmed = confirm("Deneyi sıfırlamak istediğinize emin misiniz?");
-      if (!confirmed) return;
-      clearInterval(intervalId);
-      intervalId = null;
-      document.getElementById("time").textContent = "Yükleniyor...";
-      document.getElementById("temp").textContent = "Yükleniyor...";
-      document.getElementById("humidity").textContent = "Yükleniyor...";
-      temperatureChart.data.labels = [];
-      temperatureChart.data.datasets[0].data = [];
-      temperatureChart.data.datasets[1].data = [];
-      temperatureChart.update();
-      document.getElementById("dataBody").innerHTML = "";
-      document.getElementById("saveBtn").disabled = true;
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("stopBtn").disabled = true;
-    });
+    }
   </script>
 </body>
 </html>
+
 
 
 
