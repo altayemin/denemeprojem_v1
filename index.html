@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SUBÜ - Canlı Deney Verileri</title>
   <style>
     body {
@@ -83,7 +83,7 @@
     <button id="resetBtn">Sıfırla</button>
   </div>
 
-  <div id="chartContainer" style="max-width: 900px; margin: auto;">
+  <div id="chartContainer" style="max-width: 900px; height: 400px; margin: auto;">
     <canvas id="dataChart"></canvas>
   </div>
 
@@ -97,8 +97,7 @@
           <th>Nem (%)</th>
         </tr>
       </thead>
-      <tbody id="dataBody">
-      </tbody>
+      <tbody id="dataBody"></tbody>
     </table>
   </div>
 
@@ -149,35 +148,31 @@
         const rows = text.trim().split("\n").map(row => row.split(","));
         const lastRow = rows[rows.length - 1];
 
-        const time = lastRow[0]?.trim() || "-";
-        const temp = lastRow[1] || "-";
-        const humidity = lastRow[2] || "-";
+        const time = lastRow[0]?.trim();
+        const temp = parseFloat(lastRow[1]?.trim());
+        const humidity = parseFloat(lastRow[2]?.trim());
 
-        if (time === lastTimestamp) return;
-        lastTimestamp = time;
+        if (time && time !== lastTimestamp) {
+          lastTimestamp = time;
 
-        document.getElementById("time").textContent = time;
-        document.getElementById("temp").textContent = temp;
-        document.getElementById("humidity").textContent = humidity;
+          document.getElementById("time").textContent = time;
+          document.getElementById("temp").textContent = temp;
+          document.getElementById("humidity").textContent = humidity;
 
-        const tableBody = document.getElementById("dataBody");
-        const newRow = document.createElement("tr");
-        newRow.innerHTML = `
-          <td>${time}</td>
-          <td>${temp}</td>
-          <td>${humidity}</td>
-        `;
-        tableBody.appendChild(newRow);
-
-        const tempVal = parseFloat(temp);
-        const humVal = parseFloat(humidity);
-        if (!isNaN(tempVal) && !isNaN(humVal)) {
           labels.push(time);
-          tempData.push(tempVal);
-          humidityData.push(humVal);
+          tempData.push(temp);
+          humidityData.push(humidity);
           temperatureChart.update();
-        }
 
+          const tableBody = document.getElementById("dataBody");
+          const newRow = document.createElement("tr");
+          newRow.innerHTML = `
+            <td>${time}</td>
+            <td>${temp}</td>
+            <td>${humidity}</td>
+          `;
+          tableBody.appendChild(newRow);
+        }
       } catch (e) {
         console.error("Veri alınamadı:", e);
       }
