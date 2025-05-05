@@ -36,7 +36,6 @@
     let chart;
     let updateInterval;
 
-    // Başlangıç verileri için boş grafik
     function setupChart() {
       const ctx = document.getElementById("myChart").getContext("2d");
       chart = new Chart(ctx, {
@@ -61,66 +60,60 @@
         options: {
           responsive: true,
           scales: {
-            x: { display: true, title: { display: true, text: 'Zaman' } },
-            y: { beginAtZero: true }
+            x: { title: { display: true, text: 'Zaman' } },
+            y: { beginAtZero: false }
           }
         }
       });
     }
 
-    // HTML tablo ve grafiği güncelle
+    async function fetchData() {
+      try {
+        const response = await fetch("veri.json");
+        const data = await response.json();
+        updateDisplay(data);
+      } catch (e) {
+        console.error("Veri alınamadı:", e);
+      }
+    }
+
     function updateDisplay(data) {
       const tbody = document.querySelector("#data-table tbody");
       tbody.innerHTML = "";
 
       const labels = [];
-      const temperature = [];
-      const humidity = [];
+      const temp = [];
+      const hum = [];
 
       data.forEach(row => {
-        const [zaman, sicaklik, nem] = row;
-        labels.push(zaman);
-        temperature.push(parseFloat(sicaklik));
-        humidity.push(parseFloat(nem));
+        const [time, tempVal, humVal] = row;
+        labels.push(time);
+        temp.push(parseFloat(tempVal));
+        hum.push(parseFloat(humVal));
 
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${zaman}</td><td>${sicaklik}</td><td>${nem}</td>`;
+        tr.innerHTML = `<td>${time}</td><td>${tempVal}</td><td>${humVal}</td>`;
         tbody.appendChild(tr);
       });
 
       chart.data.labels = labels;
-      chart.data.datasets[0].data = temperature;
-      chart.data.datasets[1].data = humidity;
+      chart.data.datasets[0].data = temp;
+      chart.data.datasets[1].data = hum;
       chart.update();
-    }
-
-    // Google Sheets verisini çeken fonksiyon (statik sayfada örnek veriyle çalışıyor)
-    async function fetchData() {
-      const response = await fetch("veri.json"); // Python script'in oluşturduğu JSON dosyası
-      const data = await response.json();
-      updateDisplay(data);
     }
 
     function startUpdates() {
       fetchData();
-      updateInterval = setInterval(fetchData, 5000); // 5 saniyede bir güncelle
+      updateInterval = setInterval(fetchData, 5000);
     }
 
     function stopUpdates() {
       clearInterval(updateInterval);
     }
 
-    setupChart(); // Sayfa yüklenince grafik hazırla
+    setupChart();
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
 
 
