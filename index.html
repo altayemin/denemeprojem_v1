@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SUBÜ - Canlı Deney Verileri</title>
   <style>
     body {
@@ -16,6 +16,10 @@
       background-color: #003366;
       color: white;
       padding: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
     }
     .container {
       display: flex;
@@ -48,6 +52,8 @@
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <header>
@@ -73,6 +79,7 @@
   <div style="margin: 30px;">
     <button id="startBtn">Deneyi Başlat</button>
     <button id="stopBtn" disabled>Deneyi Durdur</button>
+    <button id="saveBtn" disabled>Kaydet</button>
     <button id="resetBtn">Sıfırla</button>
   </div>
 
@@ -80,11 +87,31 @@
     <canvas id="dataChart"></canvas>
   </div>
 
+  <div style="max-width: 800px; margin: 40px auto; overflow-x: auto;">
+    <h2>Canlı Veri Listesi</h2>
+    <table id="dataTable" border="1" style="width: 100%; border-collapse: collapse; background: white;">
+      <thead>
+        <tr style="background-color: #003366; color: white;">
+          <th>Zaman</th>
+          <th>Sıcaklık (°C)</th>
+          <th>Nem (%)</th>
+        </tr>
+      </thead>
+      <tbody id="dataBody">
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    &copy; 2025 Sakarya Uygulamalı Bilimler Üniversitesi - Otomasyon Deney Düzeneği
+  </footer>
+
   <script>
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/pub?output=csv";
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
+
     let intervalId = null;
     let temperatureChart = null;
-    let lastTime = ""; 
+    let lastTimestamp = null; // 🔐 Eklenen kontrol değişkeni
     const labels = [];
     const tempData = [];
     const humidityData = [];
@@ -95,11 +122,24 @@
       data: {
         labels: labels,
         datasets: [
-          { label: 'Sıcaklık (°C)', data: tempData, borderColor: 'red', fill: false },
-          { label: 'Nem (%)', data: humidityData, borderColor: 'blue', fill: false }
+          {
+            label: 'Sıcaklık (°C)',
+            data: tempData,
+            borderColor: 'red',
+            fill: false
+          },
+          {
+            label: 'Nem (%)',
+            data: humidityData,
+            borderColor: 'blue',
+            fill: false
+          }
         ]
       },
-      options: { responsive: true, maintainAspectRatio: false }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
     });
 
     async function fetchLatestData() {
@@ -109,17 +149,29 @@
         const rows = text.trim().split("\n").map(row => row.split(","));
         const lastRow = rows[rows.length - 1];
 
-        const time = lastRow[0] || "-";
-        const temp = lastRow[1] || "-";
-        const humidity = lastRow[2] || "-";
+        const time = lastRow[0]?.trim() || "-";
+        const temp = lastRow[1]?.trim() || "-";
+        const humidity = lastRow[2]?.trim() || "-";
 
-        if (time === lastTime) return; // Aynı veri tekrar eklenmesin
-        lastTime = time;
+        if (time === lastTimestamp) return; // ❗ Aynı veri tekrar eklenmesin
+        lastTimestamp = time;
 
+        // Kutulara yaz
         document.getElementById("time").textContent = time;
         document.getElementById("temp").textContent = temp;
         document.getElementById("humidity").textContent = humidity;
 
+        // Tabloya ekle
+        const tableBody = document.getElementById("dataBody");
+        const newRow = document.createElement("tr");
+        newRow.innerHTML = `
+          <td>${time}</td>
+          <td>${temp}</td>
+          <td>${humidity}</td>
+        `;
+        tableBody.appendChild(newRow);
+
+        // Grafiğe ekle
         labels.push(time);
         tempData.push(parseFloat(temp));
         humidityData.push(parseFloat(humidity));
@@ -144,12 +196,36 @@
       intervalId = null;
       document.getElementById("startBtn").disabled = false;
       document.getElementById("stopBtn").disabled = true;
+      document.getElementById("saveBtn").disabled = false;
+    });
+
+    document.getElementById("saveBtn").addEventListener("click", async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF();
+      const targetAreas = [
+        document.querySelector(".container"),
+        document.querySelector("#chartContainer"),
+        document.querySelector("table")
+      ];
+      let yOffset = 10;
+      for (const area of targetAreas) {
+        if (!area) continue;
+        const canvas = await html2canvas(area);
+        const imgData = canvas.toDataURL("image/png");
+        const imgWidth = 180;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        pdf.addImage(imgData, "PNG", 15, yOffset, imgWidth, imgHeight);
+        yOffset += imgHeight + 10;
+      }
+      pdf.save("deney_raporu.pdf");
     });
 
     document.getElementById("resetBtn").addEventListener("click", () => {
+      const confirmed = confirm("Deneyi sıfırlamak istediğinize emin misiniz?");
+      if (!confirmed) return;
       clearInterval(intervalId);
       intervalId = null;
-      lastTime = "";
+      lastTimestamp = null; // 🔄 Burada sıfırlıyoruz
       document.getElementById("time").textContent = "Yükleniyor...";
       document.getElementById("temp").textContent = "Yükleniyor...";
       document.getElementById("humidity").textContent = "Yükleniyor...";
@@ -157,6 +233,8 @@
       temperatureChart.data.datasets[0].data = [];
       temperatureChart.data.datasets[1].data = [];
       temperatureChart.update();
+      document.getElementById("dataBody").innerHTML = "";
+      document.getElementById("saveBtn").disabled = true;
       document.getElementById("startBtn").disabled = false;
       document.getElementById("stopBtn").disabled = true;
     });
