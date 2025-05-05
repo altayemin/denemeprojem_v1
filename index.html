@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SUBÜ - Canlı Deney Verileri</title>
   <style>
     body {
@@ -83,7 +83,7 @@
     <button id="resetBtn">Sıfırla</button>
   </div>
 
-  <div id="chartContainer" style="max-width: 900px; height: 400px; margin: auto;">
+  <div id="chartContainer" style="max-width: 900px; margin: auto;">
     <canvas id="dataChart"></canvas>
   </div>
 
@@ -97,7 +97,8 @@
           <th>Nem (%)</th>
         </tr>
       </thead>
-      <tbody id="dataBody"></tbody>
+      <tbody id="dataBody">
+      </tbody>
     </table>
   </div>
 
@@ -107,13 +108,12 @@
 
   <script>
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
-
     let intervalId = null;
     let temperatureChart = null;
     const labels = [];
     const tempData = [];
     const humidityData = [];
-    let lastTimestamp = null;
+    let lastTime = ""; // En son gelen zaman bilgisini saklamak için bir değişken
 
     const ctx = document.getElementById('dataChart').getContext('2d');
     temperatureChart = new Chart(ctx, {
@@ -148,22 +148,17 @@
         const rows = text.trim().split("\n").map(row => row.split(","));
         const lastRow = rows[rows.length - 1];
 
-        const time = lastRow[0]?.trim();
-        const temp = parseFloat(lastRow[1]?.trim());
-        const humidity = parseFloat(lastRow[2]?.trim());
+        const time = lastRow[0] || "-";
+        const temp = lastRow[1] || "-";
+        const humidity = lastRow[2] || "-";
 
-        if (time && time !== lastTimestamp) {
-          lastTimestamp = time;
-
+        // Eğer zaman etiketi daha önce eklenmediyse veriyi ekle
+        if (time !== lastTime) {
           document.getElementById("time").textContent = time;
           document.getElementById("temp").textContent = temp;
           document.getElementById("humidity").textContent = humidity;
 
-          labels.push(time);
-          tempData.push(temp);
-          humidityData.push(humidity);
-          temperatureChart.update();
-
+          // Tabloya veri ekle
           const tableBody = document.getElementById("dataBody");
           const newRow = document.createElement("tr");
           newRow.innerHTML = `
@@ -172,7 +167,17 @@
             <td>${humidity}</td>
           `;
           tableBody.appendChild(newRow);
+
+          // Grafik verisini güncelle
+          labels.push(time);
+          tempData.push(parseFloat(temp));
+          humidityData.push(parseFloat(humidity));
+          temperatureChart.update();
+
+          // Son eklenen zaman bilgisini kaydet
+          lastTime = time;
         }
+
       } catch (e) {
         console.error("Veri alınamadı:", e);
       }
@@ -221,7 +226,6 @@
       if (!confirmed) return;
       clearInterval(intervalId);
       intervalId = null;
-      lastTimestamp = null;
       document.getElementById("time").textContent = "Yükleniyor...";
       document.getElementById("temp").textContent = "Yükleniyor...";
       document.getElementById("humidity").textContent = "Yükleniyor...";
@@ -237,3 +241,4 @@
   </script>
 </body>
 </html>
+
