@@ -180,7 +180,7 @@
     document.getElementById("startBtn").addEventListener("click", () => {
       if (!intervalId) {
         fetchLatestData();
-        intervalId = setInterval(fetchLatestData, 20000);
+        intervalId = setInterval(fetchLatestData, 30000);
         document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = false;
       }
