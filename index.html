@@ -156,7 +156,6 @@
         document.getElementById("temp").textContent = temp;
         document.getElementById("humidity").textContent = humidity;
 
-        // Tabloya veri ekle
         const tableBody = document.getElementById("dataBody");
         const newRow = document.createElement("tr");
         newRow.innerHTML = `
@@ -166,7 +165,6 @@
         `;
         tableBody.appendChild(newRow);
 
-        // Grafik verisini güncelle
         labels.push(time);
         tempData.push(parseFloat(temp));
         humidityData.push(parseFloat(humidity));
@@ -180,7 +178,7 @@
     document.getElementById("startBtn").addEventListener("click", () => {
       if (!intervalId) {
         fetchLatestData();
-        intervalId = setInterval(fetchLatestData, 5000);
+        intervalId = setInterval(fetchLatestData, 15000); // 15 saniye aralıkla veri al
         document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = false;
       }
