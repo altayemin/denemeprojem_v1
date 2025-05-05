@@ -97,7 +97,8 @@
           <th>Nem (%)</th>
         </tr>
       </thead>
-      <tbody id="dataBody"></tbody>
+      <tbody id="dataBody">
+      </tbody>
     </table>
   </div>
 
@@ -107,13 +108,13 @@
 
   <script>
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
+
     let intervalId = null;
     let temperatureChart = null;
-    let lastTimestamp = null;
-
     const labels = [];
     const tempData = [];
     const humidityData = [];
+    let lastTime = ""; // En son eklenen zaman
 
     const ctx = document.getElementById('dataChart').getContext('2d');
     temperatureChart = new Chart(ctx, {
@@ -146,51 +147,32 @@
         const res = await fetch(sheetUrl);
         const text = await res.text();
         const rows = text.trim().split("\n").map(row => row.split(","));
+        const validRows = rows.filter(row => row.length >= 3);
+        const lastRow = validRows[validRows.length - 1];
 
-        // Başlık varsa atla
-        if (rows[0][0].toLowerCase().includes("zaman")) {
-          rows.shift();
+        const [timeStr, tempStr, humidityStr] = lastRow;
+
+        if (timeStr === lastTime) {
+          return; // Aynı veri, ekleme
         }
-
-        let latestRow = null;
-        let latestTime = null;
-
-        for (const row of rows) {
-          const timeStr = row[0]?.trim();
-          const time = new Date(timeStr.replace(" ", "T"));
-          if (!isNaN(time)) {
-            if (!latestTime || time > latestTime) {
-              latestTime = time;
-              latestRow = row;
-            }
-          }
-        }
-
-        if (!latestRow) return;
-
-        const timeStr = latestRow[0]?.trim();
-        const temp = latestRow[1]?.trim();
-        const humidity = latestRow[2]?.trim();
-
-        if (timeStr === lastTimestamp) return; // Zaten işlendi
-        lastTimestamp = timeStr;
+        lastTime = timeStr;
 
         document.getElementById("time").textContent = timeStr;
-        document.getElementById("temp").textContent = temp;
-        document.getElementById("humidity").textContent = humidity;
+        document.getElementById("temp").textContent = tempStr;
+        document.getElementById("humidity").textContent = humidityStr;
 
         const tableBody = document.getElementById("dataBody");
         const newRow = document.createElement("tr");
         newRow.innerHTML = `
           <td>${timeStr}</td>
-          <td>${temp}</td>
-          <td>${humidity}</td>
+          <td>${tempStr}</td>
+          <td>${humidityStr}</td>
         `;
         tableBody.appendChild(newRow);
 
         labels.push(timeStr);
-        tempData.push(parseFloat(temp));
-        humidityData.push(parseFloat(humidity));
+        tempData.push(parseFloat(tempStr));
+        humidityData.push(parseFloat(humidityStr));
         temperatureChart.update();
 
       } catch (e) {
@@ -241,7 +223,7 @@
       if (!confirmed) return;
       clearInterval(intervalId);
       intervalId = null;
-      lastTimestamp = null;
+      lastTime = "";
       document.getElementById("time").textContent = "Yükleniyor...";
       document.getElementById("temp").textContent = "Yükleniyor...";
       document.getElementById("humidity").textContent = "Yükleniyor...";
@@ -257,6 +239,7 @@
   </script>
 </body>
 </html>
+
 
 
 
