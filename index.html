@@ -159,11 +159,11 @@
         // Tabloya veri ekle
         const tableBody = document.getElementById("dataBody");
         const newRow = document.createElement("tr");
-        newRow.innerHTML = 
+        newRow.innerHTML = `
           <td>${time}</td>
           <td>${temp}</td>
           <td>${humidity}</td>
-        ;
+        `;
         tableBody.appendChild(newRow);
 
         // Grafik verisini güncelle
@@ -235,5 +235,6 @@
   </script>
 </body>
 </html>
+
 
 
