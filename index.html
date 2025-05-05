@@ -1,117 +1,102 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <title>Canlı Veri Görselleştirme</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SUBÜ - Canlı Deney Verileri</title>
   <style>
-    body { font-family: Arial; padding: 20px; }
-    button { margin: 10px; padding: 10px; font-size: 16px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #aaa; padding: 8px; text-align: center; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f3f6fa;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    header {
+      background-color: #003366;
+      color: white;
+      padding: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .container {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+    .card {
+      background-color: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 30px;
+      min-width: 200px;
+    }
+    .label {
+      font-weight: bold;
+      font-size: 18px;
+      color: #003366;
+      margin-bottom: 10px;
+    }
+    .value {
+      font-size: 28px;
+      color: #222;
+    }
+    footer {
+      margin-top: 50px;
+      color: #666;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
+  <header>
+    <h1>Sakarya Uygulamalı Bilimler Üniversitesi</h1>
+    <p>Canlı Deney Verileri</p>
+  </header>
 
-  <h1>Canlı Sıcaklık ve Nem Verileri</h1>
+  <div class="container">
+    <div class="card">
+      <div class="label">Zaman</div>
+      <div id="time" class="value">Yükleniyor...</div>
+    </div>
+    <div class="card">
+      <div class="label">Sıcaklık (°C)</div>
+      <div id="temp" class="value">Yükleniyor...</div>
+    </div>
+    <div class="card">
+      <div class="label">Nem (%)</div>
+      <div id="humidity" class="value">Yükleniyor...</div>
+    </div>
+  </div>
 
-  <button onclick="startUpdates()">Başlat</button>
-  <button onclick="stopUpdates()">Durdur</button>
-  <button onclick="fetchData()">Veriyi Güncelle</button>
-
-  <canvas id="myChart" width="600" height="300"></canvas>
-
-  <table id="data-table">
-    <thead>
-      <tr>
-        <th>Zaman</th>
-        <th>Sıcaklık (°C)</th>
-        <th>Nem (%)</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <footer>
+    &copy; 2025 Sakarya Uygulamalı Bilimler Üniversitesi - Otomasyon Deney Düzeneği
+  </footer>
 
   <script>
-    let chart;
-    let updateInterval;
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
 
-    function setupChart() {
-      const ctx = document.getElementById("myChart").getContext("2d");
-      chart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: [],
-          datasets: [
-            {
-              label: "Sıcaklık (°C)",
-              data: [],
-              borderColor: "red",
-              fill: false
-            },
-            {
-              label: "Nem (%)",
-              data: [],
-              borderColor: "blue",
-              fill: false
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            x: { title: { display: true, text: 'Zaman' } },
-            y: { beginAtZero: false }
-          }
-        }
-      });
-    }
-
-    async function fetchData() {
+    async function fetchLatestData() {
       try {
-        const response = await fetch("veri.json");
-        const data = await response.json();
-        updateDisplay(data);
+        const res = await fetch(sheetUrl);
+        const text = await res.text();
+        const rows = text.trim().split("\n").map(row => row.split(","));
+        const lastRow = rows[rows.length - 1];
+
+        document.getElementById("time").textContent = lastRow[0] || "-";
+        document.getElementById("temp").textContent = lastRow[1] || "-";
+        document.getElementById("humidity").textContent = lastRow[2] || "-";
       } catch (e) {
         console.error("Veri alınamadı:", e);
       }
     }
 
-    function updateDisplay(data) {
-      const tbody = document.querySelector("#data-table tbody");
-      tbody.innerHTML = "";
-
-      const labels = [];
-      const temp = [];
-      const hum = [];
-
-      data.forEach(row => {
-        const [time, tempVal, humVal] = row;
-        labels.push(time);
-        temp.push(parseFloat(tempVal));
-        hum.push(parseFloat(humVal));
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${time}</td><td>${tempVal}</td><td>${humVal}</td>`;
-        tbody.appendChild(tr);
-      });
-
-      chart.data.labels = labels;
-      chart.data.datasets[0].data = temp;
-      chart.data.datasets[1].data = hum;
-      chart.update();
-    }
-
-    function startUpdates() {
-      fetchData();
-      updateInterval = setInterval(fetchData, 5000);
-    }
-
-    function stopUpdates() {
-      clearInterval(updateInterval);
-    }
-
-    setupChart();
+    fetchLatestData();
+    setInterval(fetchLatestData, 5000); // 5 saniyede bir yenile
   </script>
 </body>
 </html>
