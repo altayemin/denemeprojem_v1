@@ -50,10 +50,23 @@
       color: #666;
       font-size: 14px;
     }
+    .data-list {
+      margin-top: 40px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .data-item {
+      padding: 8px;
+      background-color: #fff;
+      border-bottom: 1px solid #ddd;
+    }
+    .data-item:last-child {
+      border-bottom: none;
+    }
+    .button-container {
+      margin-top: 20px;
+    }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <header>
@@ -76,31 +89,14 @@
     </div>
   </div>
 
-  <div style="margin: 30px;">
-    <button id="startBtn">Deneyi Başlat</button>
-    <button id="stopBtn" disabled>Deneyi Durdur</button>
-    <button id="saveBtn" disabled>Kaydet</button>
-    <button id="resetBtn">Sıfırla</button>
+  <div class="button-container">
+    <button id="startButton">Deneyi Başlat</button>
+    <button id="stopButton" disabled>Deneyi Durdur</button>
+    <button id="resetButton">Sıfırla</button>
+    <button id="saveButton" disabled>Kaydet</button>
   </div>
 
-  <div id="chartContainer" style="max-width: 900px; margin: auto;">
-    <canvas id="dataChart"></canvas>
-  </div>
-
-  <div style="max-width: 800px; margin: 40px auto; overflow-x: auto;">
-    <h2>Canlı Veri Listesi</h2>
-    <table id="dataTable" border="1" style="width: 100%; border-collapse: collapse; background: white;">
-      <thead>
-        <tr style="background-color: #003366; color: white;">
-          <th>Zaman</th>
-          <th>Sıcaklık (°C)</th>
-          <th>Nem (%)</th>
-        </tr>
-      </thead>
-      <tbody id="dataBody">
-      </tbody>
-    </table>
-  </div>
+  <div class="data-list" id="dataList"></div>
 
   <footer>
     &copy; 2025 Sakarya Uygulamalı Bilimler Üniversitesi - Otomasyon Deney Düzeneği
@@ -108,38 +104,9 @@
 
   <script>
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
-
+    let lastTimestamp = "";
     let intervalId = null;
-    let temperatureChart = null;
-    const labels = [];
-    const tempData = [];
-    const humidityData = [];
-
-    const ctx = document.getElementById('dataChart').getContext('2d');
-    temperatureChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Sıcaklık (°C)',
-            data: tempData,
-            borderColor: 'red',
-            fill: false
-          },
-          {
-            label: 'Nem (%)',
-            data: humidityData,
-            borderColor: 'blue',
-            fill: false
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false
-      }
-    });
+    let data = [];
 
     async function fetchLatestData() {
       try {
@@ -147,90 +114,71 @@
         const text = await res.text();
         const rows = text.trim().split("\n").map(row => row.split(","));
         const lastRow = rows[rows.length - 1];
+        const [time, temp, humidity] = lastRow;
 
-        const time = lastRow[0] || "-";
-        const temp = lastRow[1] || "-";
-        const humidity = lastRow[2] || "-";
+        if (time !== lastTimestamp) {
+          lastTimestamp = time;
 
-        document.getElementById("time").textContent = time;
-        document.getElementById("temp").textContent = temp;
-        document.getElementById("humidity").textContent = humidity;
+          document.getElementById("time").textContent = time || "-";
+          document.getElementById("temp").textContent = temp || "-";
+          document.getElementById("humidity").textContent = humidity || "-";
 
-        // Tabloya veri ekle
-        const tableBody = document.getElementById("dataBody");
-        const newRow = document.createElement("tr");
-        newRow.innerHTML = `
-          <td>${time}</td>
-          <td>${temp}</td>
-          <td>${humidity}</td>
-        `;
-        tableBody.appendChild(newRow);
-
-        // Grafik verisini güncelle
-        labels.push(time);
-        tempData.push(parseFloat(temp));
-        humidityData.push(parseFloat(humidity));
-        temperatureChart.update();
+          addData(time, parseFloat(temp), parseFloat(humidity));
+          appendToDataList(time, temp, humidity);
+        }
 
       } catch (e) {
         console.error("Veri alınamadı:", e);
       }
     }
 
-    document.getElementById("startBtn").addEventListener("click", () => {
-      if (!intervalId) {
-        fetchLatestData();
-        intervalId = setInterval(fetchLatestData, 5000);
-        document.getElementById("startBtn").disabled = true;
-        document.getElementById("stopBtn").disabled = false;
+    function addData(time, temp, humidity) {
+      data.push({ time, temp, humidity });
+      updateChart();
+    }
+
+    function appendToDataList(time, temp, humidity) {
+      const listItem = document.createElement("div");
+      listItem.classList.add("data-item");
+      listItem.textContent = `${time} - Sıcaklık: ${temp}°C, Nem: ${humidity}%`;
+      document.getElementById("dataList").appendChild(listItem);
+    }
+
+    function updateChart() {
+      // Grafik çizim kodu burada olacak
+      console.log("Veriler güncellendi: ", data);
+    }
+
+    document.getElementById("startButton").addEventListener("click", () => {
+      intervalId = setInterval(fetchLatestData, 5000);
+      document.getElementById("startButton").disabled = true;
+      document.getElementById("stopButton").disabled = false;
+      document.getElementById("saveButton").disabled = false;
+    });
+
+    document.getElementById("stopButton").addEventListener("click", () => {
+      clearInterval(intervalId);
+      document.getElementById("startButton").disabled = false;
+      document.getElementById("stopButton").disabled = true;
+    });
+
+    document.getElementById("resetButton").addEventListener("click", () => {
+      if (confirm("Deneyi sıfırlamak istediğinize emin misiniz?")) {
+        data = [];
+        lastTimestamp = "";
+        document.getElementById("time").textContent = "Yükleniyor...";
+        document.getElementById("temp").textContent = "Yükleniyor...";
+        document.getElementById("humidity").textContent = "Yükleniyor...";
+        document.getElementById("dataList").innerHTML = "";
+        document.getElementById("startButton").disabled = false;
+        document.getElementById("stopButton").disabled = true;
+        document.getElementById("saveButton").disabled = true;
       }
     });
 
-    document.getElementById("stopBtn").addEventListener("click", () => {
-      clearInterval(intervalId);
-      intervalId = null;
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("stopBtn").disabled = true;
-      document.getElementById("saveBtn").disabled = false;
-    });
-
-    document.getElementById("saveBtn").addEventListener("click", async () => {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF();
-      const targetAreas = [
-        document.querySelector(".container"),
-        document.querySelector("#chartContainer"),
-        document.querySelector("table")
-      ];
-      let yOffset = 10;
-      for (const area of targetAreas) {
-        if (!area) continue;
-        const canvas = await html2canvas(area);
-        const imgData = canvas.toDataURL("image/png");
-        const imgWidth = 180;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, "PNG", 15, yOffset, imgWidth, imgHeight);
-        yOffset += imgHeight + 10;
-      }
-      pdf.save("deney_raporu.pdf");
-    });
-
-    document.getElementById("resetBtn").addEventListener("click", () => {
-      const confirmed = confirm("Deneyi sıfırlamak istediğinize emin misiniz?");
-      if (!confirmed) return;
-      clearInterval(intervalId);
-      intervalId = null;
-      document.getElementById("time").textContent = "Yükleniyor...";
-      document.getElementById("temp").textContent = "Yükleniyor...";
-      document.getElementById("humidity").textContent = "Yükleniyor...";
-      temperatureChart.data.labels = [];
-      temperatureChart.data.datasets[0].data = [];
-      temperatureChart.data.datasets[1].data = [];
-      temperatureChart.update();
-      document.getElementById("dataBody").innerHTML = "";
-      document.getElementById("saveBtn").disabled = true;
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("stopBtn").disabled = true;
+    document.getElementById("saveButton").addEventListener("click", () => {
+      // PDF kaydetme fonksiyonu buraya gelecek
+      console.log("PDF kaydedilecek...");
     });
   </script>
 </body>
