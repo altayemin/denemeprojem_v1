@@ -1,122 +1,71 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SUBÜ - Canlı Deney Verileri</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canlı Sıcaklık ve Nem Verisi</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f3f6fa;
-      margin: 0;
-      padding: 0;
-      text-align: center;
-    }
-    header {
-      background-color: #003366;
-      color: white;
-      padding: 20px;
+      margin: 20px;
+      background-color: #f5f5f5;
     }
     h1 {
-      margin: 0;
-      font-size: 24px;
+      color: #333;
     }
-    .container {
-      display: flex;
-      justify-content: center;
-      gap: 30px;
-      margin-top: 40px;
-      flex-wrap: wrap;
-    }
-    .card {
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
       background-color: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      padding: 30px;
-      min-width: 200px;
     }
-    .label {
-      font-weight: bold;
-      font-size: 18px;
-      color: #003366;
-      margin-bottom: 10px;
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      text-align: center;
     }
-    .value {
-      font-size: 28px;
-      color: #222;
+    th {
+      background-color: #4CAF50;
+      color: white;
     }
-    footer {
-      margin-top: 50px;
-      color: #666;
-      font-size: 14px;
+    canvas {
+      background-color: white;
+      margin-top: 20px;
+      border: 1px solid #ccc;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Sakarya Uygulamalı Bilimler Üniversitesi</h1>
-    <p>Canlı Deney Verileri</p>
-  </header>
+  <h1>Canlı Sıcaklık ve Nem Verisi</h1>
+  <p><strong>Zaman:</strong> <span id="time">-</span></p>
+  <p><strong>Sıcaklık (°C):</strong> <span id="temp">-</span></p>
+  <p><strong>Nem (%):</strong> <span id="humidity">-</span></p>
 
-  <div class="container">
-    <div class="card">
-      <div class="label">Zaman</div>
-      <div id="time" class="value">Yükleniyor...</div>
-    </div>
-    <div class="card">
-      <div class="label">Sıcaklık (°C)</div>
-      <div id="temp" class="value">Yükleniyor...</div>
-    </div>
-    <div class="card">
-      <div class="label">Nem (%)</div>
-      <div id="humidity" class="value">Yükleniyor...</div>
-    </div>
-  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Zaman</th>
+        <th>Sıcaklık (°C)</th>
+        <th>Nem (%)</th>
+      </tr>
+    </thead>
+    <tbody id="dataBody">
+    </tbody>
+  </table>
 
-  <div style="margin: 30px;">
-    <button id="startBtn">Deneyi Başlat</button>
-    <button id="stopBtn" disabled>Deneyi Durdur</button>
-    <button id="saveBtn" disabled>Kaydet</button>
-    <button id="resetBtn">Sıfırla</button>
-  </div>
-
-  <div id="chartContainer" style="max-width: 900px; margin: auto;">
-    <canvas id="dataChart"></canvas>
-  </div>
-
-  <div style="max-width: 800px; margin: 40px auto; overflow-x: auto;">
-    <h2>Canlı Veri Listesi</h2>
-    <table id="dataTable" border="1" style="width: 100%; border-collapse: collapse; background: white;">
-      <thead>
-        <tr style="background-color: #003366; color: white;">
-          <th>Zaman</th>
-          <th>Sıcaklık (°C)</th>
-          <th>Nem (%)</th>
-        </tr>
-      </thead>
-      <tbody id="dataBody">
-      </tbody>
-    </table>
-  </div>
-
-  <footer>
-    &copy; 2025 Sakarya Uygulamalı Bilimler Üniversitesi - Otomasyon Deney Düzeneği
-  </footer>
+  <canvas id="temperatureChart" width="600" height="300"></canvas>
 
   <script>
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
-    let intervalId = null;
-    let temperatureChart = null;
-    const labels = [];
-    const tempData = [];
-    const humidityData = [];
-    let lastTime = ""; // En son gelen zaman bilgisini saklamak için bir değişken
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTnE1qf3cVB3r8H2z9qeFQdDHPqok8LZz3v3VgO6w0dfnQ/pub?output=csv'; // kendi csv bağlantınızı girin
 
-    const ctx = document.getElementById('dataChart').getContext('2d');
-    temperatureChart = new Chart(ctx, {
+    let labels = [];
+    let tempData = [];
+    let humidityData = [];
+    let latestTimestamp = "";
+
+    const ctx = document.getElementById('temperatureChart').getContext('2d');
+    const temperatureChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: labels,
@@ -124,20 +73,40 @@
           {
             label: 'Sıcaklık (°C)',
             data: tempData,
-            borderColor: 'red',
-            fill: false
+            borderColor: 'rgb(255, 99, 132)',
+            fill: false,
+            tension: 0.1
           },
           {
             label: 'Nem (%)',
             data: humidityData,
-            borderColor: 'blue',
-            fill: false
+            borderColor: 'rgb(54, 162, 235)',
+            fill: false,
+            tension: 0.1
           }
         ]
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false
+        plugins: {
+          legend: {
+            position: 'top',
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Zaman'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Değer'
+            }
+          }
+        }
       }
     });
 
@@ -146,36 +115,44 @@
         const res = await fetch(sheetUrl);
         const text = await res.text();
         const rows = text.trim().split("\n").map(row => row.split(","));
-        const lastRow = rows[rows.length - 1];
 
-        const time = lastRow[0] || "-";
-        const temp = lastRow[1] || "-";
-        const humidity = lastRow[2] || "-";
+        let newestRow = null;
+        let newestTime = "";
 
-        // Eğer zaman etiketi daha önce eklenmediyse veriyi ekle
-        if (time !== lastTime) {
-          document.getElementById("time").textContent = time;
+        for (const row of rows) {
+          const time = row[0];
+          if (!time || time === "undefined" || time === "Zaman") continue;
+
+          const [date, clock] = time.split(" ");
+          const [day, month, year] = date.split(".");
+          const isoTime = `${year}-${month}-${day}T${clock}`;
+
+          if (!newestTime || new Date(isoTime) > new Date(newestTime)) {
+            newestTime = isoTime;
+            newestRow = row;
+          }
+        }
+
+        if (new Date(newestTime) > new Date(latestTimestamp)) {
+          const displayTime = newestRow[0];
+          const temp = newestRow[1] || "-";
+          const humidity = newestRow[2] || "-";
+
+          document.getElementById("time").textContent = displayTime;
           document.getElementById("temp").textContent = temp;
           document.getElementById("humidity").textContent = humidity;
 
-          // Tabloya veri ekle
           const tableBody = document.getElementById("dataBody");
           const newRow = document.createElement("tr");
-          newRow.innerHTML = `
-            <td>${time}</td>
-            <td>${temp}</td>
-            <td>${humidity}</td>
-          `;
+          newRow.innerHTML = `<td>${displayTime}</td><td>${temp}</td><td>${humidity}</td>`;
           tableBody.appendChild(newRow);
 
-          // Grafik verisini güncelle
-          labels.push(time);
+          labels.push(displayTime);
           tempData.push(parseFloat(temp));
           humidityData.push(parseFloat(humidity));
           temperatureChart.update();
 
-          // Son eklenen zaman bilgisini kaydet
-          lastTime = time;
+          latestTimestamp = newestTime;
         }
 
       } catch (e) {
@@ -183,62 +160,9 @@
       }
     }
 
-    document.getElementById("startBtn").addEventListener("click", () => {
-      if (!intervalId) {
-        fetchLatestData();
-        intervalId = setInterval(fetchLatestData, 5000);
-        document.getElementById("startBtn").disabled = true;
-        document.getElementById("stopBtn").disabled = false;
-      }
-    });
-
-    document.getElementById("stopBtn").addEventListener("click", () => {
-      clearInterval(intervalId);
-      intervalId = null;
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("stopBtn").disabled = true;
-      document.getElementById("saveBtn").disabled = false;
-    });
-
-    document.getElementById("saveBtn").addEventListener("click", async () => {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF();
-      const targetAreas = [
-        document.querySelector(".container"),
-        document.querySelector("#chartContainer"),
-        document.querySelector("table")
-      ];
-      let yOffset = 10;
-      for (const area of targetAreas) {
-        if (!area) continue;
-        const canvas = await html2canvas(area);
-        const imgData = canvas.toDataURL("image/png");
-        const imgWidth = 180;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, "PNG", 15, yOffset, imgWidth, imgHeight);
-        yOffset += imgHeight + 10;
-      }
-      pdf.save("deney_raporu.pdf");
-    });
-
-    document.getElementById("resetBtn").addEventListener("click", () => {
-      const confirmed = confirm("Deneyi sıfırlamak istediğinize emin misiniz?");
-      if (!confirmed) return;
-      clearInterval(intervalId);
-      intervalId = null;
-      document.getElementById("time").textContent = "Yükleniyor...";
-      document.getElementById("temp").textContent = "Yükleniyor...";
-      document.getElementById("humidity").textContent = "Yükleniyor...";
-      temperatureChart.data.labels = [];
-      temperatureChart.data.datasets[0].data = [];
-      temperatureChart.data.datasets[1].data = [];
-      temperatureChart.update();
-      document.getElementById("dataBody").innerHTML = "";
-      document.getElementById("saveBtn").disabled = true;
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("stopBtn").disabled = true;
-    });
+    setInterval(fetchLatestData, 5000); // 5 saniyede bir veriyi kontrol et
   </script>
 </body>
 </html>
+
 
