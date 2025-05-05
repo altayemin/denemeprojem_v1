@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SUBÜ - Canlı Deney Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -26,7 +26,7 @@
       display: flex;
       justify-content: center;
       gap: 30px;
-      margin-top: 40px;
+      margin-top: 30px;
       flex-wrap: wrap;
     }
     .card {
@@ -46,33 +46,59 @@
       font-size: 28px;
       color: #222;
     }
+    #charts {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 40px;
+      margin: 50px 20px 20px;
+    }
+    canvas {
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    .buttons {
+      margin-top: 30px;
+    }
+    button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background-color: #003366;
+      color: white;
+      cursor: pointer;
+    }
+    #dataList {
+      margin: 50px auto;
+      max-width: 800px;
+      text-align: left;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    #dataList h3 {
+      color: #003366;
+      margin-bottom: 10px;
+    }
+    #dataList ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+    #dataList li {
+      padding: 6px 0;
+      border-bottom: 1px solid #ddd;
+      font-size: 15px;
+    }
     footer {
-      margin-top: 50px;
+      margin: 50px 0;
       color: #666;
       font-size: 14px;
-    }
-    .data-list {
-      margin-top: 40px;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    .data-item {
-      padding: 8px;
-      background-color: #fff;
-      border-bottom: 1px solid #ddd;
-    }
-    .data-item:last-child {
-      border-bottom: none;
-    }
-    .button-container {
-      margin-top: 20px;
-    }
-    #chart-container {
-      margin-top: 50px;
-      width: 80%;
-      max-width: 800px;
-      margin-left: auto;
-      margin-right: auto;
     }
   </style>
 </head>
@@ -85,79 +111,92 @@
   <div class="container">
     <div class="card">
       <div class="label">Zaman</div>
-      <div id="time" class="value">Yükleniyor...</div>
+      <div id="time" class="value">-</div>
     </div>
     <div class="card">
       <div class="label">Sıcaklık (°C)</div>
-      <div id="temp" class="value">Yükleniyor...</div>
+      <div id="temp" class="value">-</div>
     </div>
     <div class="card">
       <div class="label">Nem (%)</div>
-      <div id="humidity" class="value">Yükleniyor...</div>
+      <div id="humidity" class="value">-</div>
     </div>
   </div>
 
-  <div class="button-container">
-    <button id="startButton">Deneyi Başlat</button>
-    <button id="stopButton" disabled>Deneyi Durdur</button>
-    <button id="resetButton">Sıfırla</button>
-    <button id="saveButton" disabled>Kaydet</button>
+  <div class="buttons">
+    <button onclick="startExperiment()">Deneyi Başlat</button>
+    <button onclick="stopExperiment()">Deneyi Durdur</button>
+    <button onclick="downloadPDF()">Kaydet</button>
+    <button onclick="resetExperiment()">Sıfırla</button>
   </div>
 
-  <div class="data-list" id="dataList"></div>
+  <div id="charts">
+    <canvas id="tempChart" width="400" height="200"></canvas>
+    <canvas id="humidityChart" width="400" height="200"></canvas>
+  </div>
 
-  <div id="chart-container">
-    <canvas id="myChart"></canvas>
+  <div id="dataList">
+    <h3>Canlı Veri Listesi</h3>
+    <ul id="veriListesi"></ul>
   </div>
 
   <footer>
     &copy; 2025 Sakarya Uygulamalı Bilimler Üniversitesi - Otomasyon Deney Düzeneği
   </footer>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRe3j6SGBQ95teMnmN2rEefMl6ihkcfWyKKU8nOIpK8N0tFAtzXuhMmxGNQ3ClRiNXSiw9iDj017OBX/pub?output=csv";
-    let lastTimestamp = "";
-    let lastCheckedRow = "";
-    let intervalId = null;
-    let data = [];
 
-    // Grafik için veri yapılandırması
-    const ctx = document.getElementById('myChart').getContext('2d');
-    const chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [], // Zaman etiketleri
-        datasets: [{
-          label: 'Sıcaklık (°C)',
-          borderColor: '#FF5733',
-          backgroundColor: 'rgba(255, 87, 51, 0.2)',
-          fill: true,
-          data: [], // Sıcaklık verileri
-        }, {
-          label: 'Nem (%)',
-          borderColor: '#33CFFF',
-          backgroundColor: 'rgba(51, 207, 255, 0.2)',
-          fill: true,
-          data: [], // Nem verileri
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          x: {
-            type: 'category',
-            labels: [], // Zaman etiketleri burada olacak
-          },
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Değer'
-            }
-          }
-        }
+    let intervalId;
+    let lastTimestamp = "";
+    let tempChart, humidityChart;
+    const timestamps = [], temps = [], humidities = [];
+
+    function startExperiment() {
+      if (!intervalId) {
+        fetchLatestData();
+        intervalId = setInterval(fetchLatestData, 5000);
       }
-    });
+    }
+
+    function stopExperiment() {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+
+    function resetExperiment() {
+      if (!confirm("Deneyi sıfırlamak istediğinize emin misiniz?")) return;
+      stopExperiment();
+      lastTimestamp = "";
+      timestamps.length = temps.length = humidities.length = 0;
+      document.getElementById("veriListesi").innerHTML = "";
+      tempChart.data.labels = humidityChart.data.labels = [];
+      tempChart.data.datasets[0].data = humidityChart.data.datasets[0].data = [];
+      tempChart.update();
+      humidityChart.update();
+      document.getElementById("time").textContent = "-";
+      document.getElementById("temp").textContent = "-";
+      document.getElementById("humidity").textContent = "-";
+    }
+
+    function appendToDataList(time, temp, humidity) {
+      const li = document.createElement("li");
+      li.textContent = `${time} - Sıcaklık: ${temp} °C, Nem: ${humidity} %`;
+      document.getElementById("veriListesi").appendChild(li);
+    }
+
+    function addData(label, temp, humidity) {
+      timestamps.push(label);
+      temps.push(temp);
+      humidities.push(humidity);
+      tempChart.data.labels.push(label);
+      tempChart.data.datasets[0].data.push(temp);
+      humidityChart.data.labels.push(label);
+      humidityChart.data.datasets[0].data.push(humidity);
+      tempChart.update();
+      humidityChart.update();
+    }
 
     async function fetchLatestData() {
       try {
@@ -165,84 +204,77 @@
         const text = await res.text();
         const rows = text.trim().split("\n").map(row => row.split(","));
         const lastRow = rows[rows.length - 1];
+
         const [time, temp, humidity] = lastRow;
 
-        // Son satır ile karşılaştırma yapıyoruz
-        if (time !== lastTimestamp && lastCheckedRow !== lastRow.join(",")) {
+        if (new Date(time) > new Date(lastTimestamp)) {
           lastTimestamp = time;
-          lastCheckedRow = lastRow.join(",");
-
-          // Verileri güncelle
           document.getElementById("time").textContent = time || "-";
           document.getElementById("temp").textContent = temp || "-";
           document.getElementById("humidity").textContent = humidity || "-";
 
-          // Yeni veriyi ekle
           addData(time, parseFloat(temp), parseFloat(humidity));
           appendToDataList(time, temp, humidity);
         }
-
       } catch (e) {
         console.error("Veri alınamadı:", e);
       }
     }
 
-    function addData(time, temp, humidity) {
-      data.push({ time, temp, humidity });
-      updateChart();
+    function initCharts() {
+      const tempCtx = document.getElementById("tempChart").getContext("2d");
+      tempChart = new Chart(tempCtx, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [{
+            label: "Sıcaklık (°C)",
+            data: [],
+            borderColor: "#e74c3c",
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+
+      const humCtx = document.getElementById("humidityChart").getContext("2d");
+      humidityChart = new Chart(humCtx, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [{
+            label: "Nem (%)",
+            data: [],
+            borderColor: "#3498db",
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
     }
 
-    function appendToDataList(time, temp, humidity) {
-      const listItem = document.createElement("div");
-      listItem.classList.add("data-item");
-      listItem.textContent = `${time} - Sıcaklık: ${temp}°C, Nem: ${humidity}%`;
-      document.getElementById("dataList").appendChild(listItem);
+    async function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Canlı Veri Listesi", 10, 10);
+
+      const listItems = document.querySelectorAll("#veriListesi li");
+      listItems.forEach((item, i) => {
+        doc.text(item.textContent, 10, 20 + i * 10);
+      });
+
+      doc.save("deney_verileri.pdf");
     }
 
-    function updateChart() {
-      const timeLabels = data.map(d => d.time);
-      const tempData = data.map(d => d.temp);
-      const humidityData = data.map(d => d.humidity);
-
-      chart.data.labels = timeLabels;
-      chart.data.datasets[0].data = tempData;
-      chart.data.datasets[1].data = humidityData;
-      chart.update();
-    }
-
-    document.getElementById("startButton").addEventListener("click", () => {
-      intervalId = setInterval(fetchLatestData, 5000);
-      document.getElementById("startButton").disabled = true;
-      document.getElementById("stopButton").disabled = false;
-      document.getElementById("saveButton").disabled = false;
-    });
-
-    document.getElementById("stopButton").addEventListener("click", () => {
-      clearInterval(intervalId);
-      document.getElementById("startButton").disabled = false;
-      document.getElementById("stopButton").disabled = true;
-    });
-
-    document.getElementById("resetButton").addEventListener("click", () => {
-      if (confirm("Deneyi sıfırlamak istediğinize emin misiniz?")) {
-        data = [];
-        lastTimestamp = "";
-        lastCheckedRow = "";
-        document.getElementById("time").textContent = "Yükleniyor...";
-        document.getElementById("temp").textContent = "Yükleniyor...";
-        document.getElementById("humidity").textContent = "Yükleniyor...";
-        document.getElementById("dataList").innerHTML = "";
-        document.getElementById("startButton").disabled = false;
-        document.getElementById("stopButton").disabled = true;
-        document.getElementById("saveButton").disabled = true;
-      }
-    });
-
-    document.getElementById("saveButton").addEventListener("click", () => {
-      // PDF kaydetme fonksiyonu buraya gelecek
-      console.log("PDF kaydedilecek...");
-    });
-
+    window.onload = () => {
+      initCharts();
+    };
   </script>
 </body>
 </html>
