@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SUBÜ - Canlı Deney Verileri</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -66,6 +67,13 @@
     .button-container {
       margin-top: 20px;
     }
+    #chart-container {
+      margin-top: 50px;
+      width: 80%;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
   </style>
 </head>
 <body>
@@ -98,6 +106,10 @@
 
   <div class="data-list" id="dataList"></div>
 
+  <div id="chart-container">
+    <canvas id="myChart"></canvas>
+  </div>
+
   <footer>
     &copy; 2025 Sakarya Uygulamalı Bilimler Üniversitesi - Otomasyon Deney Düzeneği
   </footer>
@@ -107,6 +119,44 @@
     let lastTimestamp = "";
     let intervalId = null;
     let data = [];
+
+    // Grafik için veri yapılandırması
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [], // Zaman etiketleri
+        datasets: [{
+          label: 'Sıcaklık (°C)',
+          borderColor: '#FF5733',
+          backgroundColor: 'rgba(255, 87, 51, 0.2)',
+          fill: true,
+          data: [], // Sıcaklık verileri
+        }, {
+          label: 'Nem (%)',
+          borderColor: '#33CFFF',
+          backgroundColor: 'rgba(51, 207, 255, 0.2)',
+          fill: true,
+          data: [], // Nem verileri
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            type: 'category',
+            labels: [], // Zaman etiketleri burada olacak
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Değer'
+            }
+          }
+        }
+      }
+    });
 
     async function fetchLatestData() {
       try {
@@ -145,8 +195,14 @@
     }
 
     function updateChart() {
-      // Grafik çizim kodu burada olacak
-      console.log("Veriler güncellendi: ", data);
+      const timeLabels = data.map(d => d.time);
+      const tempData = data.map(d => d.temp);
+      const humidityData = data.map(d => d.humidity);
+
+      chart.data.labels = timeLabels;
+      chart.data.datasets[0].data = tempData;
+      chart.data.datasets[1].data = humidityData;
+      chart.update();
     }
 
     document.getElementById("startButton").addEventListener("click", () => {
