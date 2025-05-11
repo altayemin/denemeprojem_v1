@@ -4,15 +4,62 @@
   <meta charset="UTF-8">
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .chart-container { width: 100%; max-width: 600px; margin-bottom: 40px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      margin: 0;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+    .block {
+      width: 48%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .bottom-block {
+      margin-top: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .chart-container {
+      flex: 0 0 48%;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    .chart-container h3 {
+      text-align: center;
+      font-size: 1.1rem;
+      margin-bottom: 5px;
+    }
+    @media (max-width: 768px) {
+      .block, .chart-container {
+        width: 100%;
+        flex: 0 0 100%;
+      }
+    }
   </style>
 </head>
 <body>
   <h1>Canlı Sensör Verileri</h1>
-  <div id="charts"></div>
+  <div class="wrapper">
+    <div class="block" id="tempCharts"></div>
+    <div class="block" id="humCharts"></div>
+  </div>
+  <div class="bottom-block" id="extraCharts"></div>
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
@@ -29,67 +76,78 @@
       "HS1", "SD1"
     ];
 
-    function createCharts() {
-      const container = document.getElementById("charts");
-      fieldList.forEach(field => {
-        const div = document.createElement("div");
-        div.className = "chart-container";
-        div.innerHTML = `<h3>${field}</h3><canvas id="${field}"></canvas>`;
-        container.appendChild(div);
+    const colors = {
+      T: "red",
+      H: "blue",
+      HS1: "green",
+      SD1: "orange"
+    };
 
-        chartData[field] = {
-          labels: [],
-          data: []
-        };
+    function getColor(field) {
+      if (field.startsWith("T")) return colors.T;
+      if (field.startsWith("H")) return colors.H;
+      if (field === "HS1") return colors.HS1;
+      if (field === "SD1") return colors.SD1;
+      return "gray";
+    }
 
-        charts[field] = new Chart(document.getElementById(field), {
-          type: "line",
-          data: {
-            labels: chartData[field].labels,
-            datasets: [{
-              label: field,
-              data: chartData[field].data,
-              borderColor: "blue",
-              fill: false,
-              tension: 0.3
-            }]
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              datalabels: {
-                align: 'top',
-                anchor: 'end',
-                display: function(ctx) {
-                  // Sadece son veri noktasını göster
-                  return ctx.dataIndex === ctx.chart.data.labels.length - 1;
-                },
-                formatter: function(value) {
-                  return value.toFixed(1);
-                },
-                backgroundColor: '#f00',
-                borderRadius: 4,
-                color: '#fff',
-                font: {
-                  weight: 'bold'
-                },
-                padding: 6
+    function createChartBox(field, containerId) {
+      const container = document.getElementById(containerId);
+      const div = document.createElement("div");
+      div.className = "chart-container";
+      div.innerHTML = `<h3>${field}</h3><canvas id="${field}"></canvas>`;
+      container.appendChild(div);
+
+      chartData[field] = { labels: [], data: [] };
+
+      charts[field] = new Chart(document.getElementById(field), {
+        type: "line",
+        data: {
+          labels: chartData[field].labels,
+          datasets: [{
+            label: field,
+            data: chartData[field].data,
+            borderColor: getColor(field),
+            backgroundColor: getColor(field),
+            fill: false,
+            tension: 0.3,
+            pointRadius: 3,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => `${field}: ${ctx.parsed.y}`
               }
-            },
-            scales: {
-              x: { display: true },
-              y: { beginAtZero: false }
             }
           },
-          plugins: [ChartDataLabels]
-        });
+          scales: {
+            x: { display: true },
+            y: { beginAtZero: false }
+          }
+        }
+      });
+    }
+
+    function createCharts() {
+      fieldList.forEach(field => {
+        if (field === "HS1" || field === "SD1") {
+          createChartBox(field, "extraCharts");
+        } else if (field.startsWith("T")) {
+          createChartBox(field, "tempCharts");
+        } else if (field.startsWith("H")) {
+          createChartBox(field, "humCharts");
+        }
       });
     }
 
     function updateCharts(newData) {
       const timestamp = newData["zaman"];
       if (timestamp === previousTimestamp) return;
-
       previousTimestamp = timestamp;
 
       fieldList.forEach(field => {
@@ -125,5 +183,6 @@
   </script>
 </body>
 </html>
+
 
 
