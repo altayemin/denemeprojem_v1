@@ -5,6 +5,7 @@
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -109,11 +110,8 @@
     <div class="block" id="humCharts"></div>
   </div>
   <div class="bottom-block" id="extraCharts"></div>
-
   <table id="dataTable">
-    <thead>
-      <tr id="tableHead"></tr>
-    </thead>
+    <thead><tr id="tableHead"></tr></thead>
     <tbody id="tableBody"></tbody>
   </table>
 
@@ -129,17 +127,12 @@
     let isRunning = false;
 
     const fieldList = [
-      "zaman",
-      "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
-      "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
-      "HS1", "SD1"
+      "zaman", "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
+      "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8", "HS1", "SD1"
     ];
 
     const colors = {
-      T: "red",
-      H: "blue",
-      HS1: "green",
-      SD1: "orange"
+      T: "red", H: "blue", HS1: "green", SD1: "orange"
     };
 
     function getColor(field) {
@@ -293,41 +286,38 @@
 
     document.getElementById("saveBtn").onclick = async () => {
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF();
-      let y = 10;
+      const pdf = new jsPDF("p", "mm", "a4");
+      let yOffset = 10;
 
-      pdf.setFontSize(18);
-      pdf.text("Canlı Sensör Verileri Raporu", 10, y);
-      y += 10;
+      const addCanvasToPDF = async (element, title) => {
+        const canvas = await html2canvas(element, { scale: 2 });
+        const imgData = canvas.toDataURL("image/png");
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-      const chartCanvases = document.querySelectorAll("canvas");
-
-      for (let canvas of chartCanvases) {
-        const imgData = canvas.toDataURL("image/png", 1.0);
-        const imgWidth = 180;
-        const imgHeight = (canvas.height / canvas.width) * imgWidth;
-
-        if (y + imgHeight > 270) {
+        if (yOffset + pdfHeight > pdf.internal.pageSize.getHeight()) {
           pdf.addPage();
-          y = 10;
+          yOffset = 10;
         }
 
-        pdf.addImage(imgData, "PNG", 10, y, imgWidth, imgHeight);
-        y += imgHeight + 10;
+        pdf.text(title, 10, yOffset);
+        yOffset += 5;
+        pdf.addImage(imgData, "PNG", 10, yOffset, pdfWidth, pdfHeight);
+        yOffset += pdfHeight + 10;
+      };
+
+      const chartContainers = document.querySelectorAll(".chart-container");
+      for (let i = 0; i < chartContainers.length; i++) {
+        const chartEl = chartContainers[i];
+        const title = chartEl.querySelector("h3")?.innerText || `Grafik ${i + 1}`;
+        await addCanvasToPDF(chartEl, title);
       }
 
-      pdf.addPage();
-      pdf.setFontSize(14);
-      pdf.text("Veri Tablosu", 10, 10);
+      const table = document.getElementById("dataTable");
+      await addCanvasToPDF(table, "Veri Tablosu");
 
-      await pdf.html(document.getElementById("dataTable"), {
-        x: 10,
-        y: 20,
-        html2canvas: { scale: 0.5 },
-        callback: () => {
-          pdf.save("veriler_ve_grafikler.pdf");
-        }
-      });
+      pdf.save("sensor_verileri.pdf");
     };
 
     initTableHeader();
