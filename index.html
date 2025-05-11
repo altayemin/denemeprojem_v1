@@ -320,6 +320,9 @@
 
       for (let page = 0; page < 2; page++) {
         if (page > 0) pdf.addPage();
+
+        let yPos = 10;
+
         for (let i = page * 4; i < (page + 1) * 4; i++) {
           const [temp, hum] = chartPairs[i];
           const tempCanvas = document.getElementById(temp);
@@ -328,13 +331,11 @@
           const tempImg = tempCanvas.toDataURL("image/png", 1.0);
           const humImg = humCanvas.toDataURL("image/png", 1.0);
 
-          // Grafiklerin üzerine değerleri ekle
-          pdf.setFontSize(8);
-          pdf.text(temp, 10, 5 + (i % 4) * 50);
-          pdf.text(hum, 110, 5 + (i % 4) * 50);
+          // Grafiklerin arasındaki boşluğu artırmak için yPos'u her defasında yükseltelim
+          pdf.addImage(tempImg, "PNG", 10, yPos, 90, 45);
+          pdf.addImage(humImg, "PNG", 110, yPos, 90, 45);
 
-          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
-          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
+          yPos += 55; // Her grafik arasında daha fazla boşluk bıraktık
         }
       }
 
@@ -355,8 +356,10 @@
       });
     };
 
-    initTableHeader();
-    createCharts();
+    window.onload = () => {
+      createCharts();
+      initTableHeader();
+    };
   </script>
 </body>
 </html>
