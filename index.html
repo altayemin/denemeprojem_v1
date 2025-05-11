@@ -1,165 +1,129 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Raspberry Pi Sensör Paneli</title>
+  <meta charset="UTF-8">
+  <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f9f9f9;
-    }
-    .container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      padding: 20px;
-    }
-    .column {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 20px;
-      width: 48%;
-    }
-    .bottom-row {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      padding: 0 20px;
-      margin-top: 30px;
-    }
-    .chart-box {
-      background: #fff;
-      padding: 10px;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .chart-label {
-      text-align: center;
-      font-weight: bold;
-      margin-bottom: 5px;
-    }
-    .value-box {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: #f44336;
-      color: #fff;
-      padding: 2px 6px;
-      font-size: 12px;
-      border-radius: 4px;
-    }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .chart-container { width: 100%; max-width: 600px; margin-bottom: 40px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="column" id="temperatureColumn"></div>
-    <div class="column" id="humidityColumn"></div>
-  </div>
-  <div class="bottom-row">
-    <div class="chart-box" style="width: 48%">
-      <div class="chart-label">Hava Hızı (HS1)</div>
-      <canvas id="chartHS1"></canvas>
-    </div>
-    <div class="chart-box" style="width: 48%">
-      <div class="chart-label">Su Debisi (SD1)</div>
-      <canvas id="chartSD1"></canvas>
-    </div>
-  </div>
+  <h1>Canlı Sensör Verileri</h1>
+  <div id="charts"></div>
 
   <script>
-    const chartRefs = {};
-    const latestValues = {};
+    const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
+    const INTERVAL = 5000;
+    const MAX_POINTS = 20;
 
-    const createChart = (ctxId, label, color) => {
-      const ctx = document.getElementById(ctxId).getContext("2d");
-      return new Chart(ctx, {
-        type: "line",
-        data: {
+    let previousTimestamp = "";
+    let chartData = {};
+    let charts = {};
+
+    const fieldList = [
+      "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
+      "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
+      "HS1", "SD1"
+    ];
+
+    function createCharts() {
+      const container = document.getElementById("charts");
+      fieldList.forEach(field => {
+        const div = document.createElement("div");
+        div.className = "chart-container";
+        div.innerHTML = `<h3>${field}</h3><canvas id="${field}"></canvas>`;
+        container.appendChild(div);
+
+        chartData[field] = {
           labels: [],
-          datasets: [{
-            label: label,
-            data: [],
-            borderColor: color,
-            backgroundColor: color + '33',
-            tension: 0.2,
-            fill: true
-          }]
-        },
-        options: {
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: context => `${label}: ${context.raw}`
+          data: []
+        };
+
+        charts[field] = new Chart(document.getElementById(field), {
+          type: "line",
+          data: {
+            labels: chartData[field].labels,
+            datasets: [{
+              label: field,
+              data: chartData[field].data,
+              borderColor: "blue",
+              fill: false,
+              tension: 0.3
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              datalabels: {
+                align: 'top',
+                anchor: 'end',
+                display: function(ctx) {
+                  // Sadece son veri noktasını göster
+                  return ctx.dataIndex === ctx.chart.data.labels.length - 1;
+                },
+                formatter: function(value) {
+                  return value.toFixed(1);
+                },
+                backgroundColor: '#f00',
+                borderRadius: 4,
+                color: '#fff',
+                font: {
+                  weight: 'bold'
+                },
+                padding: 6
               }
+            },
+            scales: {
+              x: { display: true },
+              y: { beginAtZero: false }
             }
           },
-          scales: {
-            x: { display: false },
-            y: { beginAtZero: true }
+          plugins: [ChartDataLabels]
+        });
+      });
+    }
+
+    function updateCharts(newData) {
+      const timestamp = newData["zaman"];
+      if (timestamp === previousTimestamp) return;
+
+      previousTimestamp = timestamp;
+
+      fieldList.forEach(field => {
+        const val = parseFloat(newData[field]);
+        if (!isNaN(val)) {
+          const chart = chartData[field];
+          chart.labels.push(timestamp);
+          chart.data.push(val);
+
+          if (chart.labels.length > MAX_POINTS) {
+            chart.labels.shift();
+            chart.data.shift();
           }
+
+          charts[field].update();
         }
       });
-    };
+    }
 
-    const drawCharts = () => {
-      const tempCol = document.getElementById("temperatureColumn");
-      const humCol = document.getElementById("humidityColumn");
-
-      for (let i = 1; i <= 8; i++) {
-        tempCol.innerHTML += `
-          <div class="chart-box">
-            <div class="chart-label">T${i}</div>
-            <canvas id="chartT${i}"></canvas>
-          </div>`;
-        chartRefs[`T${i}`] = createChart(`chartT${i}`, `T${i}`, "#e53935");
-
-        humCol.innerHTML += `
-          <div class="chart-box">
-            <div class="chart-label">H${i}</div>
-            <canvas id="chartH${i}"></canvas>
-          </div>`;
-        chartRefs[`H${i}`] = createChart(`chartH${i}`, `H${i}`, "#1e88e5");
-      }
-      chartRefs["HS1"] = createChart("chartHS1", "HS1", "#43a047");
-      chartRefs["SD1"] = createChart("chartSD1", "SD1", "#fb8c00");
-    };
-
-    const updateCharts = (data) => {
-      const last = data[data.length - 1];
-
-      Object.keys(last).forEach((key) => {
-        if (chartRefs[key]) {
-          const chart = chartRefs[key];
-          chart.data.labels.push(last.zaman);
-          chart.data.datasets[0].data.push(last[key]);
-          if (chart.data.labels.length > 20) {
-            chart.data.labels.shift();
-            chart.data.datasets[0].data.shift();
-          }
-          chart.update();
-        }
-      });
-    };
-
-    const fetchData = async () => {
+    async function fetchData() {
       try {
-        const res = await fetch("https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec");
-        const data = await res.json();
-        updateCharts(data);
+        const res = await fetch(API_URL);
+        const json = await res.json();
+        updateCharts(json);
       } catch (err) {
-        console.error("Veri alınamadı:", err);
+        console.error("Veri çekme hatası:", err);
       }
-    };
+    }
 
-    drawCharts();
+    createCharts();
     fetchData();
-    setInterval(fetchData, 15000); // 15 saniyede bir güncelle
+    setInterval(fetchData, INTERVAL);
   </script>
 </body>
 </html>
+
 
