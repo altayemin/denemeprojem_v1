@@ -45,6 +45,27 @@
       font-size: 1.1rem;
       margin-bottom: 5px;
     }
+    .last-value {
+      text-align: center;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 50px;
+      background-color: white;
+    }
+    table th, table td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+      font-size: 12px;
+    }
+    table th {
+      background-color: #eee;
+    }
     @media (max-width: 768px) {
       .block, .chart-container {
         width: 100%;
@@ -61,6 +82,13 @@
   </div>
   <div class="bottom-block" id="extraCharts"></div>
 
+  <table id="dataTable">
+    <thead>
+      <tr id="tableHead"></tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
     const INTERVAL = 5000;
@@ -71,6 +99,7 @@
     let charts = {};
 
     const fieldList = [
+      "zaman",
       "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
       "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
       "HS1", "SD1"
@@ -95,12 +124,23 @@
       const container = document.getElementById(containerId);
       const div = document.createElement("div");
       div.className = "chart-container";
-      div.innerHTML = `<h3>${field}</h3><canvas id="${field}"></canvas>`;
+
+      const valueDiv = document.createElement("div");
+      valueDiv.className = "last-value";
+      valueDiv.id = `${field}-value`;
+      valueDiv.textContent = "Son Değer: -";
+
+      const canvas = document.createElement("canvas");
+      canvas.id = field;
+
+      div.innerHTML = `<h3>${field}</h3>`;
+      div.appendChild(valueDiv);
+      div.appendChild(canvas);
       container.appendChild(div);
 
       chartData[field] = { labels: [], data: [] };
 
-      charts[field] = new Chart(document.getElementById(field), {
+      charts[field] = new Chart(canvas, {
         type: "line",
         data: {
           labels: chartData[field].labels,
@@ -135,6 +175,8 @@
 
     function createCharts() {
       fieldList.forEach(field => {
+        if (field === "zaman") return;
+
         if (field === "HS1" || field === "SD1") {
           createChartBox(field, "extraCharts");
         } else if (field.startsWith("T")) {
@@ -145,12 +187,33 @@
       });
     }
 
+    function updateTable(newData) {
+      const tbody = document.getElementById("tableBody");
+      const row = document.createElement("tr");
+      fieldList.forEach(field => {
+        const td = document.createElement("td");
+        td.textContent = newData[field] ?? "-";
+        row.appendChild(td);
+      });
+      tbody.appendChild(row);
+    }
+
+    function initTableHeader() {
+      const header = document.getElementById("tableHead");
+      fieldList.forEach(field => {
+        const th = document.createElement("th");
+        th.textContent = field;
+        header.appendChild(th);
+      });
+    }
+
     function updateCharts(newData) {
       const timestamp = newData["zaman"];
       if (timestamp === previousTimestamp) return;
       previousTimestamp = timestamp;
 
       fieldList.forEach(field => {
+        if (field === "zaman") return;
         const val = parseFloat(newData[field]);
         if (!isNaN(val)) {
           const chart = chartData[field];
@@ -162,9 +225,14 @@
             chart.data.shift();
           }
 
+          const valBox = document.getElementById(`${field}-value`);
+          if (valBox) valBox.textContent = `Son Değer: ${val.toFixed(2)}`;
+
           charts[field].update();
         }
       });
+
+      updateTable(newData);
     }
 
     async function fetchData() {
@@ -177,12 +245,14 @@
       }
     }
 
+    initTableHeader();
     createCharts();
     fetchData();
     setInterval(fetchData, INTERVAL);
   </script>
 </body>
 </html>
+
 
 
 
