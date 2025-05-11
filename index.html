@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,6 +15,26 @@
     h1 {
       text-align: center;
       margin-bottom: 30px;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .controls button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+    }
+    .controls button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
     }
     .wrapper {
       display: flex;
@@ -76,6 +97,13 @@
 </head>
 <body>
   <h1>Canlı Sensör Verileri</h1>
+  <div class="controls">
+    <button id="startBtn">Deneyi Başlat</button>
+    <button id="pauseBtn" disabled>Deneyi Duraklat</button>
+    <button id="resumeBtn" disabled>Deneye Devam Et</button>
+    <button id="resetBtn">Sıfırla</button>
+    <button id="saveBtn" disabled>Kaydet (PDF)</button>
+  </div>
   <div class="wrapper">
     <div class="block" id="tempCharts"></div>
     <div class="block" id="humCharts"></div>
@@ -97,6 +125,8 @@
     let previousTimestamp = "";
     let chartData = {};
     let charts = {};
+    let fetchInterval;
+    let isRunning = false;
 
     const fieldList = [
       "zaman",
@@ -157,18 +187,8 @@
         },
         options: {
           responsive: true,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: ctx => `${field}: ${ctx.parsed.y}`
-              }
-            }
-          },
-          scales: {
-            x: { display: true },
-            y: { beginAtZero: false }
-          }
+          plugins: { legend: { display: false } },
+          scales: { x: { display: true }, y: { beginAtZero: false } }
         }
       });
     }
@@ -176,7 +196,6 @@
     function createCharts() {
       fieldList.forEach(field => {
         if (field === "zaman") return;
-
         if (field === "HS1" || field === "SD1") {
           createChartBox(field, "extraCharts");
         } else if (field.startsWith("T")) {
@@ -219,19 +238,14 @@
           const chart = chartData[field];
           chart.labels.push(timestamp);
           chart.data.push(val);
-
           if (chart.labels.length > MAX_POINTS) {
             chart.labels.shift();
             chart.data.shift();
           }
-
-          const valBox = document.getElementById(`${field}-value`);
-          if (valBox) valBox.textContent = `Son Değer: ${val.toFixed(2)}`;
-
+          document.getElementById(`${field}-value`).textContent = `Son Değer: ${val.toFixed(2)}`;
           charts[field].update();
         }
       });
-
       updateTable(newData);
     }
 
@@ -245,13 +259,57 @@
       }
     }
 
+    document.getElementById("startBtn").onclick = () => {
+      if (!isRunning) {
+        fetchData();
+        fetchInterval = setInterval(fetchData, INTERVAL);
+        isRunning = true;
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("pauseBtn").disabled = false;
+      }
+    };
+
+    document.getElementById("pauseBtn").onclick = () => {
+      clearInterval(fetchInterval);
+      isRunning = false;
+      document.getElementById("pauseBtn").disabled = true;
+      document.getElementById("resumeBtn").disabled = false;
+      document.getElementById("saveBtn").disabled = false;
+    };
+
+    document.getElementById("resumeBtn").onclick = () => {
+      if (!isRunning) {
+        fetchInterval = setInterval(fetchData, INTERVAL);
+        isRunning = true;
+        document.getElementById("pauseBtn").disabled = false;
+        document.getElementById("resumeBtn").disabled = true;
+        document.getElementById("saveBtn").disabled = true;
+      }
+    };
+
+    document.getElementById("resetBtn").onclick = () => {
+      location.reload();
+    };
+
+    document.getElementById("saveBtn").onclick = () => {
+      import('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').then(jsPDF => {
+        const { jsPDF: PDF } = jsPDF;
+        const pdf = new PDF();
+        pdf.text("Canlı Sensör Verileri", 10, 10);
+        pdf.html(document.getElementById("dataTable"), {
+          callback: function () {
+            pdf.save("veriler.pdf");
+          }
+        });
+      });
+    };
+
     initTableHeader();
     createCharts();
-    fetchData();
-    setInterval(fetchData, INTERVAL);
   </script>
 </body>
 </html>
+
 
 
 
