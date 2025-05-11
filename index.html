@@ -5,7 +5,6 @@
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -292,20 +291,42 @@
       location.reload();
     };
 
-    document.getElementById("saveBtn").onclick = () => {
+    document.getElementById("saveBtn").onclick = async () => {
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const table = document.getElementById("dataTable");
+      const pdf = new jsPDF();
+      let y = 10;
 
-      html2canvas(table).then(canvas => {
-        const imgData = canvas.toDataURL("image/png");
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.setFontSize(18);
+      pdf.text("Canlı Sensör Verileri Raporu", 10, y);
+      y += 10;
 
-        pdf.text("Canlı Sensör Verileri", 10, 10);
-        pdf.addImage(imgData, "PNG", 10, 20, pdfWidth - 20, pdfHeight);
-        pdf.save("veriler.pdf");
+      const chartCanvases = document.querySelectorAll("canvas");
+
+      for (let canvas of chartCanvases) {
+        const imgData = canvas.toDataURL("image/png", 1.0);
+        const imgWidth = 180;
+        const imgHeight = (canvas.height / canvas.width) * imgWidth;
+
+        if (y + imgHeight > 270) {
+          pdf.addPage();
+          y = 10;
+        }
+
+        pdf.addImage(imgData, "PNG", 10, y, imgWidth, imgHeight);
+        y += imgHeight + 10;
+      }
+
+      pdf.addPage();
+      pdf.setFontSize(14);
+      pdf.text("Veri Tablosu", 10, 10);
+
+      await pdf.html(document.getElementById("dataTable"), {
+        x: 10,
+        y: 20,
+        html2canvas: { scale: 0.5 },
+        callback: () => {
+          pdf.save("veriler_ve_grafikler.pdf");
+        }
       });
     };
 
@@ -314,6 +335,7 @@
   </script>
 </body>
 </html>
+
 
 
 
