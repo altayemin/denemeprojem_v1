@@ -318,10 +318,10 @@
         ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
       ];
 
+      let yPos = 10;
+
       for (let page = 0; page < 2; page++) {
         if (page > 0) pdf.addPage();
-
-        let yPos = 10;
 
         for (let i = page * 4; i < (page + 1) * 4; i++) {
           const [temp, hum] = chartPairs[i];
@@ -331,11 +331,14 @@
           const tempImg = tempCanvas.toDataURL("image/png", 1.0);
           const humImg = humCanvas.toDataURL("image/png", 1.0);
 
-          // Grafiklerin arasındaki boşluğu artırmak için yPos'u her defasında yükseltelim
+          pdf.setFontSize(12);
+          pdf.text(`${temp}: ${temp}`, 10, yPos + 5);
+          pdf.text(`${hum}: ${hum}`, 110, yPos + 5);
+
           pdf.addImage(tempImg, "PNG", 10, yPos, 90, 45);
           pdf.addImage(humImg, "PNG", 110, yPos, 90, 45);
 
-          yPos += 55; // Her grafik arasında daha fazla boşluk bıraktık
+          yPos += 55;
         }
       }
 
