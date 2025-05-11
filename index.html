@@ -5,6 +5,7 @@
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -292,15 +293,19 @@
     };
 
     document.getElementById("saveBtn").onclick = () => {
-      import('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').then(jsPDF => {
-        const { jsPDF: PDF } = jsPDF;
-        const pdf = new PDF();
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const table = document.getElementById("dataTable");
+
+      html2canvas(table).then(canvas => {
+        const imgData = canvas.toDataURL("image/png");
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
         pdf.text("Canlı Sensör Verileri", 10, 10);
-        pdf.html(document.getElementById("dataTable"), {
-          callback: function () {
-            pdf.save("veriler.pdf");
-          }
-        });
+        pdf.addImage(imgData, "PNG", 10, 20, pdfWidth - 20, pdfHeight);
+        pdf.save("veriler.pdf");
       });
     };
 
@@ -309,6 +314,7 @@
   </script>
 </body>
 </html>
+
 
 
 
