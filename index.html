@@ -148,7 +148,7 @@
 
     const fetchData = async () => {
       try {
-        const res = await fetch("https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec");
+        const res = await fetch("https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec");
         const data = await res.json();
         updateCharts(data);
       } catch (err) {
