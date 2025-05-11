@@ -88,6 +88,12 @@
     table th {
       background-color: #eee;
     }
+    #loadingMessage {
+      text-align: center;
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: #555;
+    }
     @media (max-width: 768px) {
       .block, .chart-container {
         width: 100%;
@@ -105,13 +111,17 @@
     <button id="resetBtn">Sıfırla</button>
     <button id="saveBtn" disabled>Kaydet (PDF)</button>
   </div>
+  <div id="loadingMessage"></div>
   <div class="wrapper">
     <div class="block" id="tempCharts"></div>
     <div class="block" id="humCharts"></div>
   </div>
   <div class="bottom-block" id="extraCharts"></div>
+
   <table id="dataTable">
-    <thead><tr id="tableHead"></tr></thead>
+    <thead>
+      <tr id="tableHead"></tr>
+    </thead>
     <tbody id="tableBody"></tbody>
   </table>
 
@@ -285,39 +295,40 @@
     };
 
     document.getElementById("saveBtn").onclick = async () => {
+      document.getElementById("loadingMessage").innerText = "PDF hazırlanıyor, lütfen bekleyin...";
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      let yOffset = 10;
-
-      const addCanvasToPDF = async (element, title) => {
-        const canvas = await html2canvas(element, { scale: 2 });
-        const imgData = canvas.toDataURL("image/png");
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-        if (yOffset + pdfHeight > pdf.internal.pageSize.getHeight()) {
-          pdf.addPage();
-          yOffset = 10;
-        }
-
-        pdf.text(title, 10, yOffset);
-        yOffset += 5;
-        pdf.addImage(imgData, "PNG", 10, yOffset, pdfWidth, pdfHeight);
-        yOffset += pdfHeight + 10;
-      };
+      const pdf = new jsPDF();
+      let y = 10, x = 10;
+      let count = 0;
 
       const chartContainers = document.querySelectorAll(".chart-container");
       for (let i = 0; i < chartContainers.length; i++) {
-        const chartEl = chartContainers[i];
-        const title = chartEl.querySelector("h3")?.innerText || `Grafik ${i + 1}`;
-        await addCanvasToPDF(chartEl, title);
+        const canvasImage = await html2canvas(chartContainers[i], { scale: 1 });
+        const imgData = canvasImage.toDataURL("image/png");
+        pdf.addImage(imgData, "PNG", x, y, 90, 60);
+        count++;
+        if (count % 2 === 0) {
+          y += 65;
+          x = 10;
+        } else {
+          x += 100;
+        }
+        if (count % 6 === 0) {
+          pdf.addPage();
+          y = 10;
+          x = 10;
+        }
       }
 
-      const table = document.getElementById("dataTable");
-      await addCanvasToPDF(table, "Veri Tablosu");
-
-      pdf.save("sensor_verileri.pdf");
+      pdf.addPage();
+      await pdf.html(document.getElementById("dataTable"), {
+        margin: [10, 10],
+        autoPaging: 'text',
+        callback: function () {
+          pdf.save("veriler.pdf");
+          document.getElementById("loadingMessage").innerText = "";
+        }
+      });
     };
 
     initTableHeader();
