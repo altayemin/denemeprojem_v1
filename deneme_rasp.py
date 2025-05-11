@@ -1,20 +1,26 @@
 import requests
 import json
 
-url = "https://script.google.com/macros/s/AKfycbyVM121fuxuYy5QoI7R-EpoK5q9tEmOhDFCINSKuybFG7DNtYMKx0dJxDhOJSmw0BqNng/exec"  # Buraya kendi Web App linkini yaz
-headers = {"Content-Type": "application/json"}
+# Google Apps Script URL
+url = 'https://script.google.com/macros/s/AKfycbzXirACZNz02ZJm6JwviIEFLZUYK2uJpghi9TvrmwsEjbwo_QS5i_C80tXP8XmNNbds5g/exec'
 
+# Veriyi hazırlıyoruz
 data = {
-    "api_key": "GIZLI_ANAHTAR_123",
-    "zaman": "2025-05-11 12:34:56",
-    "T1": 25.3, "H1": 60,
-    "T2": 25.4, "H2": 61,
-    "T3": 25.2, "H3": 59,
-    "T4": 25.1, "H4": 58,
-    "T5": 25.0, "H5": 57,
-    "T6": 24.9, "H6": 56
+    "zaman": "2025-05-11 14:30:00",  # Örnek zaman
+    "T1": 23.5, "H1": 65,  # Örnek veriler
+    "T2": 24.1, "H2": 60,
+    "T3": 25.0, "H3": 55,
+    "T4": 26.5, "H4": 50,
+    "T5": 27.2, "H5": 45,
+    "T6": 28.0, "H6": 40,
+    "T7": 29.3, "H7": 35,
+    "T8": 30.1, "H8": 30,
+    "HS1": 12.5,
+    "SD1": 0.8
 }
 
-response = requests.post(url, data=json.dumps(data), headers=headers)
-print(response.text)
+# JSON verisini gönder
+response = requests.post(url, json=data)
 
+# Gönderim sonrası sonucu kontrol et
+print(response.text)
