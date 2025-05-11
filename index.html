@@ -318,11 +318,8 @@
         ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
       ];
 
-      let yPos = 10;
-
       for (let page = 0; page < 2; page++) {
         if (page > 0) pdf.addPage();
-
         for (let i = page * 4; i < (page + 1) * 4; i++) {
           const [temp, hum] = chartPairs[i];
           const tempCanvas = document.getElementById(temp);
@@ -331,14 +328,13 @@
           const tempImg = tempCanvas.toDataURL("image/png", 1.0);
           const humImg = humCanvas.toDataURL("image/png", 1.0);
 
-          pdf.setFontSize(12);
-          pdf.text(`${temp}: ${temp}`, 10, yPos + 5);
-          pdf.text(`${hum}: ${hum}`, 110, yPos + 5);
+          // Grafiklerin üzerine değerleri ekle
+          pdf.setFontSize(8);
+          pdf.text(temp, 10, 5 + (i % 4) * 50);
+          pdf.text(hum, 110, 5 + (i % 4) * 50);
 
-          pdf.addImage(tempImg, "PNG", 10, yPos, 90, 45);
-          pdf.addImage(humImg, "PNG", 110, yPos, 90, 45);
-
-          yPos += 55;
+          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
+          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
         }
       }
 
@@ -359,10 +355,8 @@
       });
     };
 
-    window.onload = () => {
-      createCharts();
-      initTableHeader();
-    };
+    initTableHeader();
+    createCharts();
   </script>
 </body>
 </html>
