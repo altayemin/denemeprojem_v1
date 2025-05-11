@@ -5,7 +5,7 @@
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -88,11 +88,20 @@
     table th {
       background-color: #eee;
     }
-    #loadingMessage {
-      text-align: center;
-      font-size: 16px;
-      margin-bottom: 10px;
-      color: #555;
+    .pdf-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .pdf-section .chart-container {
+      width: 48%;
+    }
+    #pdfExportWrapper {
+      position: fixed;
+      top: -9999px;
+      left: -9999px;
+      width: 1000px;
     }
     @media (max-width: 768px) {
       .block, .chart-container {
@@ -111,7 +120,6 @@
     <button id="resetBtn">Sıfırla</button>
     <button id="saveBtn" disabled>Kaydet (PDF)</button>
   </div>
-  <div id="loadingMessage"></div>
   <div class="wrapper">
     <div class="block" id="tempCharts"></div>
     <div class="block" id="humCharts"></div>
@@ -125,6 +133,8 @@
     <tbody id="tableBody"></tbody>
   </table>
 
+  <div id="pdfExportWrapper"></div>
+
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
     const INTERVAL = 5000;
@@ -137,12 +147,17 @@
     let isRunning = false;
 
     const fieldList = [
-      "zaman", "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
-      "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8", "HS1", "SD1"
+      "zaman",
+      "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
+      "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
+      "HS1", "SD1"
     ];
 
     const colors = {
-      T: "red", H: "blue", HS1: "green", SD1: "orange"
+      T: "red",
+      H: "blue",
+      HS1: "green",
+      SD1: "orange"
     };
 
     function getColor(field) {
@@ -295,39 +310,43 @@
     };
 
     document.getElementById("saveBtn").onclick = async () => {
-      document.getElementById("loadingMessage").innerText = "PDF hazırlanıyor, lütfen bekleyin...";
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF();
-      let y = 10, x = 10;
-      let count = 0;
+      const pdf = new jsPDF("p", "mm", "a4");
 
-      const chartContainers = document.querySelectorAll(".chart-container");
-      for (let i = 0; i < chartContainers.length; i++) {
-        const canvasImage = await html2canvas(chartContainers[i], { scale: 1 });
-        const imgData = canvasImage.toDataURL("image/png");
-        pdf.addImage(imgData, "PNG", x, y, 90, 60);
-        count++;
-        if (count % 2 === 0) {
-          y += 65;
-          x = 10;
-        } else {
-          x += 100;
-        }
-        if (count % 6 === 0) {
-          pdf.addPage();
-          y = 10;
-          x = 10;
+      const chartPairs = [
+        ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
+        ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
+      ];
+
+      for (let page = 0; page < 2; page++) {
+        if (page > 0) pdf.addPage();
+        for (let i = page * 4; i < (page + 1) * 4; i++) {
+          const [temp, hum] = chartPairs[i];
+          const tempCanvas = document.getElementById(temp);
+          const humCanvas = document.getElementById(hum);
+
+          const tempImg = tempCanvas.toDataURL("image/png", 1.0);
+          const humImg = humCanvas.toDataURL("image/png", 1.0);
+
+          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
+          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
         }
       }
 
       pdf.addPage();
-      await pdf.html(document.getElementById("dataTable"), {
-        margin: [10, 10],
-        autoPaging: 'text',
-        callback: function () {
-          pdf.save("veriler.pdf");
-          document.getElementById("loadingMessage").innerText = "";
-        }
+
+      const hsImg = document.getElementById("HS1").toDataURL("image/png", 1.0);
+      const sdImg = document.getElementById("SD1").toDataURL("image/png", 1.0);
+
+      pdf.addImage(hsImg, "PNG", 10, 10, 90, 45);
+      pdf.addImage(sdImg, "PNG", 110, 10, 90, 45);
+
+      const dataTable = document.getElementById("dataTable");
+      await html2canvas(dataTable, { scale: 2 }).then(canvas => {
+        const tableImg = canvas.toDataURL("image/png");
+        const tableHeight = (canvas.height * 180) / canvas.width;
+        pdf.addImage(tableImg, "PNG", 10, 60, 190, tableHeight);
+        pdf.save("veriler.pdf");
       });
     };
 
@@ -336,6 +355,7 @@
   </script>
 </body>
 </html>
+
 
 
 
