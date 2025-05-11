@@ -5,6 +5,7 @@
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -66,12 +67,6 @@
       font-size: 1.1rem;
       margin-bottom: 5px;
     }
-    .chart-container .label-title {
-      text-align: center;
-      font-size: 0.9rem;
-      color: #666;
-      margin-bottom: 5px;
-    }
     .last-value {
       text-align: center;
       font-weight: bold;
@@ -92,6 +87,21 @@
     }
     table th {
       background-color: #eee;
+    }
+    .pdf-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .pdf-section .chart-container {
+      width: 48%;
+    }
+    #pdfExportWrapper {
+      position: fixed;
+      top: -9999px;
+      left: -9999px;
+      width: 1000px;
     }
     @media (max-width: 768px) {
       .block, .chart-container {
@@ -122,6 +132,8 @@
     </thead>
     <tbody id="tableBody"></tbody>
   </table>
+
+  <div id="pdfExportWrapper"></div>
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
@@ -161,10 +173,6 @@
       const div = document.createElement("div");
       div.className = "chart-container";
 
-      const labelTitle = document.createElement("div");
-      labelTitle.className = "label-title";
-      labelTitle.textContent = `${field} Sensör Verisi`;
-
       const valueDiv = document.createElement("div");
       valueDiv.className = "last-value";
       valueDiv.id = `${field}-value`;
@@ -173,7 +181,7 @@
       const canvas = document.createElement("canvas");
       canvas.id = field;
 
-      div.appendChild(labelTitle);
+      div.innerHTML = `<h3>${field}</h3>`;
       div.appendChild(valueDiv);
       div.appendChild(canvas);
       container.appendChild(div);
@@ -301,11 +309,58 @@
       location.reload();
     };
 
+    document.getElementById("saveBtn").onclick = async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+
+      const chartPairs = [
+        ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
+        ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
+      ];
+
+      for (let page = 0; page < 2; page++) {
+        if (page > 0) pdf.addPage();
+        for (let i = page * 4; i < (page + 1) * 4; i++) {
+          const [temp, hum] = chartPairs[i];
+          const tempCanvas = document.getElementById(temp);
+          const humCanvas = document.getElementById(hum);
+
+          const tempImg = tempCanvas.toDataURL("image/png", 1.0);
+          const humImg = humCanvas.toDataURL("image/png", 1.0);
+
+          // Grafiklerin üzerine değerleri ekle
+          pdf.setFontSize(8);
+          pdf.text(temp, 10, 5 + (i % 4) * 50);
+          pdf.text(hum, 110, 5 + (i % 4) * 50);
+
+          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
+          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
+        }
+      }
+
+      pdf.addPage();
+
+      const hsImg = document.getElementById("HS1").toDataURL("image/png", 1.0);
+      const sdImg = document.getElementById("SD1").toDataURL("image/png", 1.0);
+
+      pdf.addImage(hsImg, "PNG", 10, 10, 90, 45);
+      pdf.addImage(sdImg, "PNG", 110, 10, 90, 45);
+
+      const dataTable = document.getElementById("dataTable");
+      await html2canvas(dataTable, { scale: 2 }).then(canvas => {
+        const tableImg = canvas.toDataURL("image/png");
+        const tableHeight = (canvas.height * 180) / canvas.width;
+        pdf.addImage(tableImg, "PNG", 10, 60, 190, tableHeight);
+        pdf.save("veriler.pdf");
+      });
+    };
+
     initTableHeader();
     createCharts();
   </script>
 </body>
 </html>
+
 
 
 
