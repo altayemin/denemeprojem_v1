@@ -133,18 +133,11 @@
     <tbody id="tableBody"></tbody>
   </table>
 
-  <table id="sdTable">
-    <thead>
-      <tr id="sdTableHead"></tr>
-    </thead>
-    <tbody id="sdTableBody"></tbody>
-  </table>
-
   <div id="pdfExportWrapper"></div>
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
-    const SD_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
+    const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
     const INTERVAL = 5000;
     const MAX_POINTS = 20;
 
@@ -241,18 +234,6 @@
       tbody.appendChild(row);
     }
 
-    function updateSDTable(newData) {
-      const tbody = document.getElementById("sdTableBody");
-      const row = document.createElement("tr");
-      const tdZaman = document.createElement("td");
-      tdZaman.textContent = newData["zaman"] ?? "-";
-      const tdSD1 = document.createElement("td");
-      tdSD1.textContent = newData["SD1"] ?? "-";
-      row.appendChild(tdZaman);
-      row.appendChild(tdSD1);
-      tbody.appendChild(row);
-    }
-
     function initTableHeader() {
       const header = document.getElementById("tableHead");
       fieldList.forEach(field => {
@@ -262,14 +243,27 @@
       });
     }
 
-    function initSDTableHeader() {
-      const header = document.getElementById("sdTableHead");
-      const thZaman = document.createElement("th");
-      thZaman.textContent = "Zaman";
-      const thSD1 = document.createElement("th");
-      thSD1.textContent = "Su Debisi (SD1)";
-      header.appendChild(thZaman);
-      header.appendChild(thSD1);
+    function updateCharts(newData) {
+      const timestamp = newData["zaman"];
+      if (timestamp === previousTimestamp) return;
+      previousTimestamp = timestamp;
+
+      fieldList.forEach(field => {
+        if (field === "zaman") return;
+        const val = parseFloat(newData[field]);
+        if (!isNaN(val)) {
+          const chart = chartData[field];
+          chart.labels.push(timestamp);
+          chart.data.push(val);
+          if (chart.labels.length > MAX_POINTS) {
+            chart.labels.shift();
+            chart.data.shift();
+          }
+          document.getElementById(`${field}-value`).textContent = `Son Değer: ${val.toFixed(2)}`;
+          charts[field].update();
+        }
+      });
+      updateTable(newData);
     }
 
     async function fetchData() {
@@ -277,29 +271,44 @@
         const res = await fetch(API_URL);
         const json = await res.json();
         updateCharts(json);
-        updateTable(json);
       } catch (err) {
         console.error("Veri çekme hatası:", err);
       }
     }
 
-    async function fetchSDData() {
+    async function fetchSD1Data() {
       try {
-        const res = await fetch(SD_API_URL);
+        const res = await fetch(SD1_API_URL);
         const json = await res.json();
-        updateSDTable(json);
+        updateSD1Chart(json);
       } catch (err) {
         console.error("SD1 verisi çekme hatası:", err);
+      }
+    }
+
+    function updateSD1Chart(newData) {
+      const timestamp = newData["zaman"];
+      const val = parseFloat(newData["SD1"]);
+      if (!isNaN(val)) {
+        const chart = chartData["SD1"];
+        chart.labels.push(timestamp);
+        chart.data.push(val);
+        if (chart.labels.length > MAX_POINTS) {
+          chart.labels.shift();
+          chart.data.shift();
+        }
+        document.getElementById("SD1-value").textContent = `Son Değer: ${val.toFixed(2)}`;
+        charts["SD1"].update();
       }
     }
 
     document.getElementById("startBtn").onclick = () => {
       if (!isRunning) {
         fetchData();
-        fetchSDData();
+        fetchSD1Data();
         fetchInterval = setInterval(() => {
           fetchData();
-          fetchSDData();
+          fetchSD1Data();
         }, INTERVAL);
         isRunning = true;
         document.getElementById("startBtn").disabled = true;
@@ -319,7 +328,7 @@
       if (!isRunning) {
         fetchInterval = setInterval(() => {
           fetchData();
-          fetchSDData();
+          fetchSD1Data();
         }, INTERVAL);
         isRunning = true;
         document.getElementById("pauseBtn").disabled = false;
@@ -351,39 +360,24 @@
           const tempImg = tempCanvas.toDataURL("image/png", 1.0);
           const humImg = humCanvas.toDataURL("image/png", 1.0);
 
-          // Grafiklerin üzerine değerleri ekle
           pdf.setFontSize(8);
           pdf.text(temp, 10, 5 + (i % 4) * 50);
           pdf.text(hum, 110, 5 + (i % 4) * 50);
 
-          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
-          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
+          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 100, 60);
+          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 100, 60);
         }
       }
 
-      pdf.addPage();
-
-      const hsImg = document.getElementById("HS1").toDataURL("image/png", 1.0);
-      const sdImg = document.getElementById("SD1").toDataURL("image/png", 1.0);
-
-      pdf.addImage(hsImg, "PNG", 10, 10, 90, 45);
-      pdf.addImage(sdImg, "PNG", 110, 10, 90, 45);
-
-      const dataTable = document.getElementById("dataTable");
-      await html2canvas(dataTable, { scale: 2 }).then(canvas => {
-        const tableImg = canvas.toDataURL("image/png");
-        const tableHeight = (canvas.height * 180) / canvas.width;
-        pdf.addImage(tableImg, "PNG", 10, 60, 190, tableHeight);
-        pdf.save("veriler.pdf");
-      });
+      pdf.save("sensör_verileri.pdf");
     };
 
-    initTableHeader();
-    initSDTableHeader();
     createCharts();
+    initTableHeader();
   </script>
 </body>
 </html>
+
 
 
 
