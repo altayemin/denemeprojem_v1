@@ -137,7 +137,7 @@
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
-    const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec"; // SD1 verisi alınacak URL
+    const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
     const INTERVAL = 5000;
     const MAX_POINTS = 20;
 
@@ -245,6 +245,34 @@
       });
     }
 
+    async function updateSD1Data() {
+      const res = await fetch(SD1_API_URL);
+      const json = await res.json();
+      const sd1Data = json.map(item => ({
+        zaman: item.Zaman,
+        SD1: item.SD1
+      }));
+      
+      // Update SD1 chart
+      const sd1Chart = chartData["SD1"];
+      sd1Data.forEach(data => {
+        const timestamp = data.zaman;
+        const value = parseFloat(data.SD1);
+        
+        if (!isNaN(value)) {
+          sd1Chart.labels.push(timestamp);
+          sd1Chart.data.push(value);
+          if (sd1Chart.labels.length > MAX_POINTS) {
+            sd1Chart.labels.shift();
+            sd1Chart.data.shift();
+          }
+          document.getElementById(`SD1-value`).textContent = `Son Değer: ${value.toFixed(2)}`;
+        }
+      });
+      
+      charts["SD1"].update();
+    }
+
     function updateCharts(newData) {
       const timestamp = newData["zaman"];
       if (timestamp === previousTimestamp) return;
@@ -274,82 +302,26 @@
         const json = await res.json();
         updateCharts(json);
       } catch (err) {
-        console.error("Veri çekme hatası:", err);
+        console.error('Veri çekme hatası:', err);
       }
     }
 
-    async function fetchSD1Data() {
-      try {
-        const res = await fetch(SD1_API_URL);
-        const json = await res.json();
-        if (json && json.length > 0) {
-          const sd1Data = json[json.length - 1]; // Son veriyi al
-          const timestamp = sd1Data.Zaman;
-          const sd1Value = parseFloat(sd1Data.SD1);
-          if (!isNaN(sd1Value)) {
-            const chart = chartData["SD1"];
-            chart.labels.push(timestamp);
-            chart.data.push(sd1Value);
-            if (chart.labels.length > MAX_POINTS) {
-              chart.labels.shift();
-              chart.data.shift();
-            }
-            document.getElementById("SD1-value").textContent = `Son Değer: ${sd1Value.toFixed(2)}`;
-            charts["SD1"].update();
-          }
-        }
-      } catch (err) {
-        console.error("SD1 verisi çekme hatası:", err);
-      }
+    function startFetchingData() {
+      fetchData();
+      fetchInterval = setInterval(fetchData, INTERVAL);
     }
 
-    document.getElementById("startBtn").onclick = () => {
-      if (!isRunning) {
-        fetchData();
-        fetchSD1Data();
-        fetchInterval = setInterval(() => {
-          fetchData();
-          fetchSD1Data();
-        }, INTERVAL);
-        isRunning = true;
-        document.getElementById("startBtn").disabled = true;
-        document.getElementById("pauseBtn").disabled = false;
-      }
-    };
-
-    document.getElementById("pauseBtn").onclick = () => {
+    function stopFetchingData() {
       clearInterval(fetchInterval);
-      isRunning = false;
-      document.getElementById("pauseBtn").disabled = true;
-      document.getElementById("resumeBtn").disabled = false;
-    };
+    }
 
-    document.getElementById("resumeBtn").onclick = () => {
-      fetchInterval = setInterval(() => {
-        fetchData();
-        fetchSD1Data();
-      }, INTERVAL);
-      isRunning = true;
-      document.getElementById("resumeBtn").disabled = true;
-      document.getElementById("pauseBtn").disabled = false;
-    };
-
-    document.getElementById("resetBtn").onclick = () => {
-      clearInterval(fetchInterval);
-      isRunning = false;
-      previousTimestamp = "";
-      chartData = {};
-      charts = {};
-      initTableHeader();
+    // Sayfa yüklendiğinde
+    window.onload = function () {
       createCharts();
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("pauseBtn").disabled = true;
-      document.getElementById("resumeBtn").disabled = true;
+      initTableHeader();
+      startFetchingData();
+      setInterval(updateSD1Data, INTERVAL);
     };
-
-    // Sayfa yüklendiğinde grafik ve tabloyu oluştur
-    initTableHeader();
-    createCharts();
   </script>
 </body>
 </html>
