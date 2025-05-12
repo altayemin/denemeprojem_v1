@@ -1,149 +1,278 @@
 <!DOCTYPE html>
 <html lang="tr">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DeepSmart Sensör Paneli</title>
+  <meta charset="UTF-8">
+  <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
+      padding: 20px;
       margin: 0;
-      padding: 20px;
+      background-color: #f9f9f9;
     }
-    h2 {
-      color: #333;
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
     }
-    .chart-container {
-      width: 100%;
-      margin-bottom: 40px;
-      background-color: #fff;
-      padding: 20px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
-    }
-    canvas {
-      width: 100% !important;
-      height: 400px !important;
-    }
-    .button-container {
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
       margin-bottom: 20px;
+      flex-wrap: wrap;
     }
-    button {
+    .controls button {
       padding: 10px 20px;
       font-size: 16px;
-      margin-right: 10px;
+      border: none;
+      border-radius: 5px;
       cursor: pointer;
+      background-color: #007bff;
+      color: white;
     }
-    .sensor-value {
-      font-size: 16px;
+    .controls button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+    .block {
+      width: 48%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .bottom-block {
+      margin-top: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .chart-container {
+      flex: 0 0 48%;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    .chart-container h3 {
+      text-align: center;
+      font-size: 1.1rem;
+      margin-bottom: 5px;
+    }
+    .last-value {
+      text-align: center;
       font-weight: bold;
-      color: #555;
-      margin-bottom: 10px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 50px;
+      background-color: white;
+    }
+    table th, table td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+      font-size: 12px;
+    }
+    table th {
+      background-color: #eee;
+    }
+    .pdf-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .pdf-section .chart-container {
+      width: 48%;
+    }
+    #pdfExportWrapper {
+      position: fixed;
+      top: -9999px;
+      left: -9999px;
+      width: 1000px;
+    }
+    @media (max-width: 768px) {
+      .block, .chart-container {
+        width: 100%;
+        flex: 0 0 100%;
+      }
     }
   </style>
 </head>
-
 <body>
-  <div class="button-container">
-    <button id="startBtn">Başlat</button>
-    <button id="pauseBtn" disabled>Duraklat</button>
+  <h1>Canlı Sensör Verileri</h1>
+  <div class="controls">
+    <button id="startBtn">Deneyi Başlat</button>
+    <button id="pauseBtn" disabled>Deneyi Duraklat</button>
+    <button id="resumeBtn" disabled>Deneye Devam Et</button>
+    <button id="resetBtn">Sıfırla</button>
+    <button id="saveBtn" disabled>Kaydet (PDF)</button>
   </div>
+  <div class="wrapper">
+    <div class="block" id="tempCharts"></div>
+    <div class="block" id="humCharts"></div>
+  </div>
+  <div class="bottom-block" id="extraCharts"></div>
 
-  <div id="charts"></div>
+  <table id="dataTable">
+    <thead>
+      <tr id="tableHead"></tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+  <div id="pdfExportWrapper"></div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxvPynBlHtBgi8BaU2J2T5ybzLLz0P2A0NlA6-WyNZpF4M68qjUj2Os80I29S-Mw0nAKQ/exec";
-    const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
+    const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec"; // SD1 verisi alınacak URL
     const INTERVAL = 5000;
-    const MAX_POINTS = 12;
+    const MAX_POINTS = 20;
 
-    const sensors = [
+    let previousTimestamp = "";
+    let chartData = {};
+    let charts = {};
+    let fetchInterval;
+    let isRunning = false;
+
+    const fieldList = [
+      "zaman",
       "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
       "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
       "HS1", "SD1"
     ];
 
-    let isRunning = false;
-    let fetchInterval;
+    const colors = {
+      T: "red",
+      H: "blue",
+      HS1: "green",
+      SD1: "orange"
+    };
 
-    const chartData = {};
-    const charts = {};
+    function getColor(field) {
+      if (field.startsWith("T")) return colors.T;
+      if (field.startsWith("H")) return colors.H;
+      if (field === "HS1") return colors.HS1;
+      if (field === "SD1") return colors.SD1;
+      return "gray";
+    }
 
-    function createChart(sensorId) {
-      const container = document.createElement("div");
-      container.className = "chart-container";
-      container.innerHTML = `
-        <div class="sensor-value" id="${sensorId}-value">Yükleniyor...</div>
-        <canvas id="${sensorId}-chart"></canvas>
-      `;
-      document.getElementById("charts").appendChild(container);
+    function createChartBox(field, containerId) {
+      const container = document.getElementById(containerId);
+      const div = document.createElement("div");
+      div.className = "chart-container";
 
-      chartData[sensorId] = {
-        labels: [],
-        data: []
-      };
+      const valueDiv = document.createElement("div");
+      valueDiv.className = "last-value";
+      valueDiv.id = `${field}-value`;
+      valueDiv.textContent = "Son Değer: -";
 
-      const ctx = document.getElementById(`${sensorId}-chart`).getContext("2d");
-      charts[sensorId] = new Chart(ctx, {
+      const canvas = document.createElement("canvas");
+      canvas.id = field;
+
+      div.innerHTML = `<h3>${field}</h3>`;
+      div.appendChild(valueDiv);
+      div.appendChild(canvas);
+      container.appendChild(div);
+
+      chartData[field] = { labels: [], data: [] };
+
+      charts[field] = new Chart(canvas, {
         type: "line",
         data: {
-          labels: chartData[sensorId].labels,
+          labels: chartData[field].labels,
           datasets: [{
-            label: sensorId,
-            data: chartData[sensorId].data,
+            label: field,
+            data: chartData[field].data,
+            borderColor: getColor(field),
+            backgroundColor: getColor(field),
             fill: false,
-            borderColor: "#007bff",
-            tension: 0.1
+            tension: 0.3,
+            pointRadius: 3,
+            pointHoverRadius: 6
           }]
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              title: {
-                display: true,
-                text: "Zaman"
-              }
-            },
-            y: {
-              title: {
-                display: true,
-                text: "Değer"
-              }
-            }
-          }
+          plugins: { legend: { display: false } },
+          scales: { x: { display: true }, y: { beginAtZero: false } }
         }
       });
+    }
+
+    function createCharts() {
+      fieldList.forEach(field => {
+        if (field === "zaman") return;
+        if (field === "HS1" || field === "SD1") {
+          createChartBox(field, "extraCharts");
+        } else if (field.startsWith("T")) {
+          createChartBox(field, "tempCharts");
+        } else if (field.startsWith("H")) {
+          createChartBox(field, "humCharts");
+        }
+      });
+    }
+
+    function updateTable(newData) {
+      const tbody = document.getElementById("tableBody");
+      const row = document.createElement("tr");
+      fieldList.forEach(field => {
+        const td = document.createElement("td");
+        td.textContent = newData[field] ?? "-";
+        row.appendChild(td);
+      });
+      tbody.appendChild(row);
+    }
+
+    function initTableHeader() {
+      const header = document.getElementById("tableHead");
+      fieldList.forEach(field => {
+        const th = document.createElement("th");
+        th.textContent = field;
+        header.appendChild(th);
+      });
+    }
+
+    function updateCharts(newData) {
+      const timestamp = newData["zaman"];
+      if (timestamp === previousTimestamp) return;
+      previousTimestamp = timestamp;
+
+      fieldList.forEach(field => {
+        if (field === "zaman") return;
+        const val = parseFloat(newData[field]);
+        if (!isNaN(val)) {
+          const chart = chartData[field];
+          chart.labels.push(timestamp);
+          chart.data.push(val);
+          if (chart.labels.length > MAX_POINTS) {
+            chart.labels.shift();
+            chart.data.shift();
+          }
+          document.getElementById(`${field}-value`).textContent = `Son Değer: ${val.toFixed(2)}`;
+          charts[field].update();
+        }
+      });
+      updateTable(newData);
     }
 
     async function fetchData() {
       try {
         const res = await fetch(API_URL);
         const json = await res.json();
-        const timestamp = json["Zaman"];
-
-        sensors.forEach(sensorId => {
-          if (sensorId === "SD1") return; // SD1 ayrı çekiliyor
-
-          const value = parseFloat(json[sensorId]);
-          if (!isNaN(value)) {
-            const chart = chartData[sensorId];
-            chart.labels.push(timestamp);
-            chart.data.push(value);
-
-            if (chart.labels.length > MAX_POINTS) {
-              chart.labels.shift();
-              chart.data.shift();
-            }
-
-            document.getElementById(`${sensorId}-value`).textContent = `Son Değer: ${value.toFixed(2)}`;
-            charts[sensorId].update();
-          }
-        });
+        updateCharts(json);
       } catch (err) {
         console.error("Veri çekme hatası:", err);
       }
@@ -153,40 +282,35 @@
       try {
         const res = await fetch(SD1_API_URL);
         const json = await res.json();
-
-        const timestamp = json["Zaman"];
-        const sd1Value = parseFloat(json["SD1"]);
-
-        if (!isNaN(sd1Value)) {
-          const chart = chartData["SD1"];
-          chart.labels.push(timestamp);
-          chart.data.push(sd1Value);
-
-          if (chart.labels.length > MAX_POINTS) {
-            chart.labels.shift();
-            chart.data.shift();
+        if (json && json.length > 0) {
+          const sd1Data = json[json.length - 1]; // Son veriyi al
+          const timestamp = sd1Data.Zaman;
+          const sd1Value = parseFloat(sd1Data.SD1);
+          if (!isNaN(sd1Value)) {
+            const chart = chartData["SD1"];
+            chart.labels.push(timestamp);
+            chart.data.push(sd1Value);
+            if (chart.labels.length > MAX_POINTS) {
+              chart.labels.shift();
+              chart.data.shift();
+            }
+            document.getElementById("SD1-value").textContent = `Son Değer: ${sd1Value.toFixed(2)}`;
+            charts["SD1"].update();
           }
-
-          document.getElementById("SD1-value").textContent = `Son Değer: ${sd1Value.toFixed(2)}`;
-          charts["SD1"].update();
         }
       } catch (err) {
-        console.error("SD1 veri çekme hatası:", err);
+        console.error("SD1 verisi çekme hatası:", err);
       }
     }
-
-    sensors.forEach(createChart);
 
     document.getElementById("startBtn").onclick = () => {
       if (!isRunning) {
         fetchData();
         fetchSD1Data();
-
         fetchInterval = setInterval(() => {
           fetchData();
           fetchSD1Data();
         }, INTERVAL);
-
         isRunning = true;
         document.getElementById("startBtn").disabled = true;
         document.getElementById("pauseBtn").disabled = false;
@@ -194,17 +318,42 @@
     };
 
     document.getElementById("pauseBtn").onclick = () => {
-      if (isRunning) {
-        clearInterval(fetchInterval);
-        isRunning = false;
-        document.getElementById("startBtn").disabled = false;
-        document.getElementById("pauseBtn").disabled = true;
-      }
+      clearInterval(fetchInterval);
+      isRunning = false;
+      document.getElementById("pauseBtn").disabled = true;
+      document.getElementById("resumeBtn").disabled = false;
     };
+
+    document.getElementById("resumeBtn").onclick = () => {
+      fetchInterval = setInterval(() => {
+        fetchData();
+        fetchSD1Data();
+      }, INTERVAL);
+      isRunning = true;
+      document.getElementById("resumeBtn").disabled = true;
+      document.getElementById("pauseBtn").disabled = false;
+    };
+
+    document.getElementById("resetBtn").onclick = () => {
+      clearInterval(fetchInterval);
+      isRunning = false;
+      previousTimestamp = "";
+      chartData = {};
+      charts = {};
+      initTableHeader();
+      createCharts();
+      document.getElementById("startBtn").disabled = false;
+      document.getElementById("pauseBtn").disabled = true;
+      document.getElementById("resumeBtn").disabled = true;
+    };
+
+    // Sayfa yüklendiğinde grafik ve tabloyu oluştur
+    initTableHeader();
+    createCharts();
   </script>
 </body>
-
 </html>
+
 
 
 
