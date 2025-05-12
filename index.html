@@ -120,6 +120,7 @@
     <button id="resetBtn">Sıfırla</button>
     <button id="saveBtn" disabled>Kaydet (PDF)</button>
   </div>
+
   <div class="wrapper">
     <div class="block" id="tempCharts"></div>
     <div class="block" id="humCharts"></div>
@@ -137,7 +138,7 @@
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
-    const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
+    const SD1_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
     const INTERVAL = 5000;
     const MAX_POINTS = 20;
 
@@ -245,41 +246,13 @@
       });
     }
 
-    async function updateSD1Data() {
-      const res = await fetch(SD1_API_URL);
-      const json = await res.json();
-      const sd1Data = json.map(item => ({
-        zaman: item.Zaman,
-        SD1: item.SD1
-      }));
-      
-      // Update SD1 chart
-      const sd1Chart = chartData["SD1"];
-      sd1Data.forEach(data => {
-        const timestamp = data.zaman;
-        const value = parseFloat(data.SD1);
-        
-        if (!isNaN(value)) {
-          sd1Chart.labels.push(timestamp);
-          sd1Chart.data.push(value);
-          if (sd1Chart.labels.length > MAX_POINTS) {
-            sd1Chart.labels.shift();
-            sd1Chart.data.shift();
-          }
-          document.getElementById(`SD1-value`).textContent = `Son Değer: ${value.toFixed(2)}`;
-        }
-      });
-      
-      charts["SD1"].update();
-    }
-
-    function updateCharts(newData) {
+    function updateChartsExceptSD1(newData) {
       const timestamp = newData["zaman"];
       if (timestamp === previousTimestamp) return;
       previousTimestamp = timestamp;
 
       fieldList.forEach(field => {
-        if (field === "zaman") return;
+        if (field === "zaman" || field === "SD1") return;
         const val = parseFloat(newData[field]);
         if (!isNaN(val)) {
           const chart = chartData[field];
@@ -293,35 +266,123 @@
           charts[field].update();
         }
       });
+
       updateTable(newData);
+    }
+
+    function updateSD1Chart(data) {
+      const timestamp = data["zaman"];
+      const val = parseFloat(data["SD1"]);
+      if (!isNaN(val)) {
+        const chart = chartData["SD1"];
+        chart.labels.push(timestamp);
+        chart.data.push(val);
+        if (chart.labels.length > MAX_POINTS) {
+          chart.labels.shift();
+          chart.data.shift();
+        }
+        document.getElementById("SD1-value").textContent = `Son Değer: ${val.toFixed(2)}`;
+        charts["SD1"].update();
+      }
     }
 
     async function fetchData() {
       try {
-        const res = await fetch(API_URL);
-        const json = await res.json();
-        updateCharts(json);
+        const [res1, res2] = await Promise.all([
+          fetch(API_URL),
+          fetch(SD1_URL)
+        ]);
+
+        const mainData = await res1.json();
+        const sd1Data = await res2.json();
+        delete mainData["SD1"];
+
+        updateChartsExceptSD1(mainData);
+        updateSD1Chart(sd1Data);
       } catch (err) {
-        console.error('Veri çekme hatası:', err);
+        console.error("Veri çekme hatası:", err);
       }
     }
 
-    function startFetchingData() {
-      fetchData();
-      fetchInterval = setInterval(fetchData, INTERVAL);
-    }
-
-    function stopFetchingData() {
-      clearInterval(fetchInterval);
-    }
-
-    // Sayfa yüklendiğinde
-    window.onload = function () {
-      createCharts();
-      initTableHeader();
-      startFetchingData();
-      setInterval(updateSD1Data, INTERVAL);
+    document.getElementById("startBtn").onclick = () => {
+      if (!isRunning) {
+        fetchData();
+        fetchInterval = setInterval(fetchData, INTERVAL);
+        isRunning = true;
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("pauseBtn").disabled = false;
+      }
     };
+
+    document.getElementById("pauseBtn").onclick = () => {
+      clearInterval(fetchInterval);
+      isRunning = false;
+      document.getElementById("pauseBtn").disabled = true;
+      document.getElementById("resumeBtn").disabled = false;
+      document.getElementById("saveBtn").disabled = false;
+    };
+
+    document.getElementById("resumeBtn").onclick = () => {
+      if (!isRunning) {
+        fetchInterval = setInterval(fetchData, INTERVAL);
+        isRunning = true;
+        document.getElementById("pauseBtn").disabled = false;
+        document.getElementById("resumeBtn").disabled = true;
+        document.getElementById("saveBtn").disabled = true;
+      }
+    };
+
+    document.getElementById("resetBtn").onclick = () => {
+      location.reload();
+    };
+
+    document.getElementById("saveBtn").onclick = async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+
+      const chartPairs = [
+        ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
+        ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
+      ];
+
+      for (let page = 0; page < 2; page++) {
+        if (page > 0) pdf.addPage();
+        for (let i = page * 4; i < (page + 1) * 4; i++) {
+          const [temp, hum] = chartPairs[i];
+          const tempCanvas = document.getElementById(temp);
+          const humCanvas = document.getElementById(hum);
+
+          const tempImg = tempCanvas.toDataURL("image/png", 1.0);
+          const humImg = humCanvas.toDataURL("image/png", 1.0);
+
+          pdf.setFontSize(8);
+          pdf.text(temp, 10, 5 + (i % 4) * 50);
+          pdf.text(hum, 110, 5 + (i % 4) * 50);
+
+          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
+          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
+        }
+      }
+
+      pdf.addPage();
+
+      const hsImg = document.getElementById("HS1").toDataURL("image/png", 1.0);
+      const sdImg = document.getElementById("SD1").toDataURL("image/png", 1.0);
+
+      pdf.addImage(hsImg, "PNG", 10, 10, 90, 45);
+      pdf.addImage(sdImg, "PNG", 110, 10, 90, 45);
+
+      const dataTable = document.getElementById("dataTable");
+      await html2canvas(dataTable, { scale: 2 }).then(canvas => {
+        const tableImg = canvas.toDataURL("image/png");
+        const tableHeight = (canvas.height * 180) / canvas.width;
+        pdf.addImage(tableImg, "PNG", 10, 60, 190, tableHeight);
+        pdf.save("veriler.pdf");
+      });
+    };
+
+    initTableHeader();
+    createCharts();
   </script>
 </body>
 </html>
