@@ -1,100 +1,151 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Canlı Sensör Verileri</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepSmart Sensör Paneli</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .chart-container { width: 100%; max-width: 600px; margin-bottom: 40px; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    h2 {
+      color: #333;
+    }
+    .chart-container {
+      width: 100%;
+      margin-bottom: 40px;
+      background-color: #fff;
+      padding: 20px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+    canvas {
+      width: 100% !important;
+      height: 400px !important;
+    }
+    .button-container {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    .sensor-value {
+      font-size: 16px;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
+
 <body>
-  <h1>Canlı Sensör Verileri</h1>
+  <div class="button-container">
+    <button id="startBtn">Başlat</button>
+    <button id="pauseBtn" disabled>Duraklat</button>
+  </div>
+
   <div id="charts"></div>
 
   <script>
-    const MAIN_API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxvPynBlHtBgi8BaU2J2T5ybzLLz0P2A0NlA6-WyNZpF4M68qjUj2Os80I29S-Mw0nAKQ/exec";
     const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
-    const INTERVAL = 5000; // ms
-    const MAX_POINTS = 20;
+    const INTERVAL = 5000;
+    const MAX_POINTS = 12;
 
-    let previousTimestamps = {};
-    let chartData = {};
-    let charts = {};
-
-    const fieldList = [
+    const sensors = [
       "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
       "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
       "HS1", "SD1"
     ];
 
-    function createCharts() {
-      const container = document.getElementById("charts");
-      fieldList.forEach(field => {
-        const div = document.createElement("div");
-        div.className = "chart-container";
-        div.innerHTML = `<h3>${field}</h3><canvas id="${field}"></canvas>`;
-        container.appendChild(div);
+    let isRunning = false;
+    let fetchInterval;
 
-        chartData[field] = {
-          labels: [],
-          data: []
-        };
+    const chartData = {};
+    const charts = {};
 
-        charts[field] = new Chart(document.getElementById(field), {
-          type: "line",
-          data: {
-            labels: chartData[field].labels,
-            datasets: [{
-              label: field,
-              data: chartData[field].data,
-              borderColor: "blue",
-              fill: false,
-              tension: 0.3
-            }]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              x: { display: true },
-              y: { beginAtZero: false }
+    function createChart(sensorId) {
+      const container = document.createElement("div");
+      container.className = "chart-container";
+      container.innerHTML = `
+        <div class="sensor-value" id="${sensorId}-value">Yükleniyor...</div>
+        <canvas id="${sensorId}-chart"></canvas>
+      `;
+      document.getElementById("charts").appendChild(container);
+
+      chartData[sensorId] = {
+        labels: [],
+        data: []
+      };
+
+      const ctx = document.getElementById(`${sensorId}-chart`).getContext("2d");
+      charts[sensorId] = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: chartData[sensorId].labels,
+          datasets: [{
+            label: sensorId,
+            data: chartData[sensorId].data,
+            fill: false,
+            borderColor: "#007bff",
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: "Zaman"
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Değer"
+              }
             }
           }
-        });
+        }
       });
     }
 
-    function updateField(field, timestamp, value) {
-      if (!previousTimestamps[field] || previousTimestamps[field] !== timestamp) {
-        previousTimestamps[field] = timestamp;
-
-        const chart = chartData[field];
-        chart.labels.push(timestamp);
-        chart.data.push(value);
-
-        if (chart.labels.length > MAX_POINTS) {
-          chart.labels.shift();
-          chart.data.shift();
-        }
-
-        charts[field].update();
-      }
-    }
-
-    async function fetchMainData() {
+    async function fetchData() {
       try {
-        const res = await fetch(MAIN_API_URL);
+        const res = await fetch(API_URL);
         const json = await res.json();
-        const timestamp = json["zaman"];
+        const timestamp = json["Zaman"];
 
-        fieldList.forEach(field => {
-          if (field === "SD1") return; // SD1 ayrı çekilecek
-          const val = parseFloat(json[field]);
-          if (!isNaN(val)) updateField(field, timestamp, val);
+        sensors.forEach(sensorId => {
+          if (sensorId === "SD1") return; // SD1 ayrı çekiliyor
+
+          const value = parseFloat(json[sensorId]);
+          if (!isNaN(value)) {
+            const chart = chartData[sensorId];
+            chart.labels.push(timestamp);
+            chart.data.push(value);
+
+            if (chart.labels.length > MAX_POINTS) {
+              chart.labels.shift();
+              chart.data.shift();
+            }
+
+            document.getElementById(`${sensorId}-value`).textContent = `Son Değer: ${value.toFixed(2)}`;
+            charts[sensorId].update();
+          }
         });
       } catch (err) {
-        console.error("Ana verileri çekerken hata:", err);
+        console.error("Veri çekme hatası:", err);
       }
     }
 
@@ -102,25 +153,59 @@
       try {
         const res = await fetch(SD1_API_URL);
         const json = await res.json();
-        const timestamp = json["zaman"];
-        const val = parseFloat(json["SD1"]);
-        if (!isNaN(val)) updateField("SD1", timestamp, val);
+
+        const timestamp = json["Zaman"];
+        const sd1Value = parseFloat(json["SD1"]);
+
+        if (!isNaN(sd1Value)) {
+          const chart = chartData["SD1"];
+          chart.labels.push(timestamp);
+          chart.data.push(sd1Value);
+
+          if (chart.labels.length > MAX_POINTS) {
+            chart.labels.shift();
+            chart.data.shift();
+          }
+
+          document.getElementById("SD1-value").textContent = `Son Değer: ${sd1Value.toFixed(2)}`;
+          charts["SD1"].update();
+        }
       } catch (err) {
-        console.error("SD1 verisini çekerken hata:", err);
+        console.error("SD1 veri çekme hatası:", err);
       }
     }
 
-    function fetchAll() {
-      fetchMainData();
-      fetchSD1Data();
-    }
+    sensors.forEach(createChart);
 
-    createCharts();
-    fetchAll();
-    setInterval(fetchAll, INTERVAL);
+    document.getElementById("startBtn").onclick = () => {
+      if (!isRunning) {
+        fetchData();
+        fetchSD1Data();
+
+        fetchInterval = setInterval(() => {
+          fetchData();
+          fetchSD1Data();
+        }, INTERVAL);
+
+        isRunning = true;
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("pauseBtn").disabled = false;
+      }
+    };
+
+    document.getElementById("pauseBtn").onclick = () => {
+      if (isRunning) {
+        clearInterval(fetchInterval);
+        isRunning = false;
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("pauseBtn").disabled = true;
+      }
+    };
   </script>
 </body>
+
 </html>
+
 
 
 
