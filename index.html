@@ -490,69 +490,90 @@
     };
 
     document.getElementById("saveBtn").onclick = async () => {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("p", "mm", "a4");
 
-      // 1. Grafikleri ekle
-      const chartPairs = [
-        ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
-        ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
-      ];
+  // 1. Grafikleri ekle
+  const chartPairs = [
+    ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
+    ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
+  ];
 
-      for (let page = 0; page < 2; page++) {
-        if (page > 0) pdf.addPage();
-        for (let i = page * 4; i < (page + 1) * 4; i++) {
-          const [temp, hum] = chartPairs[i];
-          const tempCanvas = document.getElementById(temp);
-          const humCanvas = document.getElementById(hum);
+  // Grafik boyutları ve konumları için ayarlar
+  const chartWidth = 85;
+  const chartHeight = 40;
+  const marginTop = 15; // Üst boşluk artırıldı
+  const marginLeft = 10;
+  const marginRight = 10;
+  const gapX = 10; // Yatay boşluk
+  const gapY = 15; // Dikey boşluk artırıldı
 
-          const tempImg = tempCanvas.toDataURL("image/png", 1.0);
-          const humImg = humCanvas.toDataURL("image/png", 1.0);
+  for (let page = 0; page < 2; page++) {
+    if (page > 0) pdf.addPage();
+    
+    for (let i = page * 4; i < (page + 1) * 4; i++) {
+      const [temp, hum] = chartPairs[i];
+      const tempCanvas = document.getElementById(temp);
+      const humCanvas = document.getElementById(hum);
 
-          pdf.setFontSize(8);
-          pdf.text(temp, 10, 5 + (i % 4) * 50);
-          pdf.text(hum, 110, 5 + (i % 4) * 50);
+      const tempImg = tempCanvas.toDataURL("image/png", 1.0);
+      const humImg = humCanvas.toDataURL("image/png", 1.0);
 
-          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
-          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
-        }
-      }
+      // Pozisyon hesaplamaları
+      const row = Math.floor((i % 4) / 2);
+      const col = (i % 4) % 2;
+      const x1 = marginLeft + col * (chartWidth + gapX + chartWidth + gapX);
+      const x2 = x1 + chartWidth + gapX;
+      const y = marginTop + row * (chartHeight + gapY);
 
-      // HS1 ve SD1 grafikleri
-      pdf.addPage();
-      
-      const hs1Canvas = document.getElementById("HS1");
-      const sd1Canvas = document.getElementById("SD1");
+      // Grafik etiketleri (daha düzenli ve ayrı)
+      pdf.setFontSize(10);
+      pdf.text(temp, x1 + 5, y - 5);
+      pdf.text(hum, x2 + 5, y - 5);
 
-      const hs1Img = hs1Canvas.toDataURL("image/png", 1.0);
-      const sd1Img = sd1Canvas.toDataURL("image/png", 1.0);
+      // Grafikler
+      pdf.addImage(tempImg, "PNG", x1, y, chartWidth, chartHeight);
+      pdf.addImage(humImg, "PNG", x2, y, chartWidth, chartHeight);
+    }
+  }
 
-      pdf.setFontSize(8);
-      pdf.text("HS1", 10, 5);
-      pdf.text("SD1", 110, 5);
+  // 2. HS1 ve SD1 grafikleri
+  pdf.addPage();
+  
+  const hs1Canvas = document.getElementById("HS1");
+  const sd1Canvas = document.getElementById("SD1");
 
-      pdf.addImage(hs1Img, "PNG", 10, 10, 90, 45);
-      pdf.addImage(sd1Img, "PNG", 110, 10, 90, 45);
+  const hs1Img = hs1Canvas.toDataURL("image/png", 1.0);
+  const sd1Img = sd1Canvas.toDataURL("image/png", 1.0);
 
-      // 2. Tabloları ekle
-      pdf.addPage();
-      
-      // DHT22 Tablosu
-      const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
-      const dht22Img = dht22Table.toDataURL("image/png");
-      pdf.addImage(dht22Img, "PNG", 10, 10, 190, dht22Table.height * 190 / dht22Table.width);
-      
-      // SD1 ve HS1 Tabloları
-      pdf.addPage();
-      
-      const sd1Table = await html2canvas(document.querySelector("#sd1Table"));
-      const hs1Table = await html2canvas(document.querySelector("#hs1Table"));
-      
-      pdf.addImage(sd1Table.toDataURL("image/png"), "PNG", 10, 10, 90, sd1Table.height * 90 / sd1Table.width);
-      pdf.addImage(hs1Table.toDataURL("image/png"), "PNG", 110, 10, 90, hs1Table.height * 90 / hs1Table.width);
+  // HS1 ve SD1 için konumlandırma
+  const extraChartY = 20;
+  pdf.setFontSize(10);
+  pdf.text("HS1", marginLeft + 5, extraChartY - 5);
+  pdf.text("SD1", marginLeft + chartWidth + gapX + 5, extraChartY - 5);
 
-      pdf.save("veriler.pdf");
-    };
+  pdf.addImage(hs1Img, "PNG", marginLeft, extraChartY, chartWidth, chartHeight);
+  pdf.addImage(sd1Img, "PNG", marginLeft + chartWidth + gapX, extraChartY, chartWidth, chartHeight);
+
+  // 3. Tabloları ekle (öncekiyle aynı)
+  pdf.addPage();
+  
+  // DHT22 Tablosu
+  const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
+  const dht22Img = dht22Table.toDataURL("image/png");
+  pdf.addImage(dht22Img, "PNG", 10, 10, 190, dht22Table.height * 190 / dht22Table.width);
+  
+  // SD1 ve HS1 Tabloları
+  pdf.addPage();
+  
+  const sd1Table = await html2canvas(document.querySelector("#sd1Table"));
+  const hs1Table = await html2canvas(document.querySelector("#hs1Table"));
+  
+  pdf.addImage(sd1Table.toDataURL("image/png"), "PNG", 10, 10, 90, sd1Table.height * 90 / sd1Table.width);
+  pdf.addImage(hs1Table.toDataURL("image/png"), "PNG", 110, 10, 90, hs1Table.height * 90 / hs1Table.width);
+
+  pdf.save("veriler.pdf");
+};
 
     createCharts();
   </script>
