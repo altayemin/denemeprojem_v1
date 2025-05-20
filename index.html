@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <!-- Orijinal head kısmı aynı kalacak -->
   <meta charset="UTF-8">
   <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <style>
-    /* Orijinal CSS aynen kalacak */
     body {
       font-family: Arial, sans-serif;
       padding: 20px;
@@ -84,7 +82,6 @@
   </style>
 </head>
 <body>
-  <!-- Orijinal HTML yapısı aynen kalacak -->
   <h1>Canlı Sensör Verileri</h1>
   <div class="controls">
     <button id="startBtn">Deneyi Başlat</button>
@@ -101,7 +98,6 @@
   <div class="bottom-block" id="extraCharts"></div>
 
   <script>
-    // Orijinal değişkenler aynen kalacak
     const MAIN_API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
     const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
     const INTERVAL = 5000;
@@ -113,7 +109,6 @@
     let isRunning = false;
     let previousTimestamp = "";
     let previousSD1Timestamp = "";
-    let previousSD1Value = null;
 
     const fieldList = [
       "zaman", "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
@@ -141,6 +136,9 @@
       const div = document.createElement("div");
       div.className = "chart-container";
 
+      const title = document.createElement("h3");
+      title.textContent = field;
+
       const valueDiv = document.createElement("div");
       valueDiv.className = "last-value";
       valueDiv.id = `${field}-value`;
@@ -149,7 +147,7 @@
       const canvas = document.createElement("canvas");
       canvas.id = field;
 
-      div.innerHTML = `<h3>${field}</h3>`;
+      div.appendChild(title);
       div.appendChild(valueDiv);
       div.appendChild(canvas);
       container.appendChild(div);
@@ -192,22 +190,14 @@
       });
     }
 
-    // GÜNCELLENMİŞ FONKSİYON (T7 ve tekrarlanan veri çözümü)
     function updateChartsExceptSD1(newData) {
       const timestamp = newData["zaman"];
-      if (timestamp === previousTimestamp) return; // Tekrarlanan veriyi engelle
+      if (timestamp === previousTimestamp) return;
       previousTimestamp = timestamp;
 
       fieldList.forEach(field => {
         if (field === "zaman" || field === "SD1") return;
-        
-        // T7 için özel kontrol
-        let val = parseFloat(newData[field]);
-        if (field === "T7" && isNaN(val)) {
-          console.warn("T7 değeri geçersiz:", newData.T7);
-          val = null; // Grafikte boşluk oluştur
-        }
-        
+        const val = parseFloat(newData[field]);
         if (!isNaN(val)) {
           const chart = chartData[field];
           chart.labels.push(timestamp);
@@ -222,7 +212,6 @@
       });
     }
 
-    // GÜNCELLENMİŞ FONKSİYON (Tekrarlanan veri çözümü)
     async function fetchSD1Data() {
       try {
         const res = await fetch(SD1_API_URL);
@@ -231,9 +220,8 @@
         const timestamp = data.zaman;
         const value = parseFloat(data.SD1);
 
-        if (timestamp && timestamp !== previousSD1Timestamp && !isNaN(value)) {
+        if (timestamp !== previousSD1Timestamp && !isNaN(value)) {
           previousSD1Timestamp = timestamp;
-          previousSD1Value = value;
 
           const chart = chartData["SD1"];
           chart.labels.push(timestamp);
@@ -245,15 +233,11 @@
           document.getElementById("SD1-value").textContent = `Son Değer: ${value.toFixed(2)}`;
           charts["SD1"].update();
         }
-        
-        return data;
       } catch (err) {
         console.error("SD1 verisi alınamadı:", err);
-        return { zaman: "", SD1: 0 };
       }
     }
 
-    // Orijinal fonksiyonlar aynen kalacak
     async function fetchData() {
       try {
         const res = await fetch(MAIN_API_URL);
@@ -341,6 +325,7 @@
   </script>
 </body>
 </html>
+
 
 
 
