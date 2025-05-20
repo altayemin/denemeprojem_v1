@@ -73,10 +73,50 @@
       color: #333;
       margin-bottom: 8px;
     }
+    .tables-container {
+      margin-top: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: space-between;
+    }
+    .data-table {
+      flex: 1;
+      min-width: 300px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      overflow-x: auto;
+    }
+    .data-table h3 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+    .data-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table th, .data-table td {
+      padding: 8px 12px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    .data-table th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .data-table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
     @media (max-width: 768px) {
       .block, .chart-container {
         width: 100%;
         flex: 0 0 100%;
+      }
+      .data-table {
+        min-width: 100%;
       }
     }
   </style>
@@ -97,6 +137,62 @@
   </div>
   <div class="bottom-block" id="extraCharts"></div>
 
+  <div class="tables-container">
+    <div class="data-table">
+      <h3>Sıcaklık ve Nem Verileri</h3>
+      <table id="tempHumTable">
+        <thead>
+          <tr>
+            <th>Zaman</th>
+            <th>T1</th>
+            <th>H1</th>
+            <th>T2</th>
+            <th>H2</th>
+            <th>T3</th>
+            <th>H3</th>
+            <th>T4</th>
+            <th>H4</th>
+            <th>T5</th>
+            <th>H5</th>
+            <th>T6</th>
+            <th>H6</th>
+            <th>T7</th>
+            <th>H7</th>
+            <th>T8</th>
+            <th>H8</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    
+    <div class="data-table">
+      <h3>SD1 Verileri</h3>
+      <table id="sd1Table">
+        <thead>
+          <tr>
+            <th>Zaman</th>
+            <th>SD1</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    
+    <div class="data-table">
+      <h3>HS1 Verileri</h3>
+      <table id="hs1Table">
+        <thead>
+          <tr>
+            <th>Zaman</th>
+            <th>HS1</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
   <script>
     const MAIN_API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
     const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
@@ -109,6 +205,7 @@
     let isRunning = false;
     let previousTimestamp = "";
     let previousSD1Timestamp = "";
+    let previousSD1Value = null;
 
     const fieldList = [
       "zaman", "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
@@ -136,9 +233,6 @@
       const div = document.createElement("div");
       div.className = "chart-container";
 
-      const title = document.createElement("h3");
-      title.textContent = field;
-
       const valueDiv = document.createElement("div");
       valueDiv.className = "last-value";
       valueDiv.id = `${field}-value`;
@@ -147,7 +241,7 @@
       const canvas = document.createElement("canvas");
       canvas.id = field;
 
-      div.appendChild(title);
+      div.innerHTML = `<h3>${field}</h3>`;
       div.appendChild(valueDiv);
       div.appendChild(canvas);
       container.appendChild(div);
@@ -190,11 +284,92 @@
       });
     }
 
+    function updateTempHumTable(newData) {
+      const tableBody = document.querySelector("#tempHumTable tbody");
+      const existingRows = tableBody.querySelectorAll("tr");
+      const lastRow = existingRows[existingRows.length - 1];
+      
+      if (lastRow && lastRow.cells[0].textContent === newData.zaman) {
+        for (let i = 1; i < lastRow.cells.length; i++) {
+          const field = fieldList[i*2 - 1]; // T1, H1, T2, H2, ... sırasıyla
+          lastRow.cells[i].textContent = newData[field] ? parseFloat(newData[field]).toFixed(2) : "-";
+        }
+      } else {
+        const row = document.createElement("tr");
+        
+        const timeCell = document.createElement("td");
+        timeCell.textContent = newData.zaman;
+        row.appendChild(timeCell);
+        
+        for (let i = 1; i < fieldList.length - 2; i += 2) {
+          const tField = fieldList[i];
+          const hField = fieldList[i+1];
+          
+          const tCell = document.createElement("td");
+          tCell.textContent = newData[tField] ? parseFloat(newData[tField]).toFixed(2) : "-";
+          row.appendChild(tCell);
+          
+          const hCell = document.createElement("td");
+          hCell.textContent = newData[hField] ? parseFloat(newData[hField]).toFixed(2) : "-";
+          row.appendChild(hCell);
+        }
+        
+        tableBody.appendChild(row);
+      }
+    }
+
+    function updateSD1Table(newData) {
+      const tableBody = document.querySelector("#sd1Table tbody");
+      const existingRows = tableBody.querySelectorAll("tr");
+      const lastRow = existingRows[existingRows.length - 1];
+      
+      if (lastRow && lastRow.cells[0].textContent === newData.zaman) {
+        lastRow.cells[1].textContent = newData.SD1 ? parseFloat(newData.SD1).toFixed(2) : "-";
+      } else {
+        const row = document.createElement("tr");
+        
+        const timeCell = document.createElement("td");
+        timeCell.textContent = newData.zaman;
+        row.appendChild(timeCell);
+        
+        const valueCell = document.createElement("td");
+        valueCell.textContent = newData.SD1 ? parseFloat(newData.SD1).toFixed(2) : "-";
+        row.appendChild(valueCell);
+        
+        tableBody.appendChild(row);
+      }
+    }
+
+    function updateHS1Table(newData) {
+      const tableBody = document.querySelector("#hs1Table tbody");
+      const existingRows = tableBody.querySelectorAll("tr");
+      const lastRow = existingRows[existingRows.length - 1];
+      
+      if (lastRow && lastRow.cells[0].textContent === newData.zaman) {
+        lastRow.cells[1].textContent = newData.HS1 ? parseFloat(newData.HS1).toFixed(2) : "-";
+      } else {
+        const row = document.createElement("tr");
+        
+        const timeCell = document.createElement("td");
+        timeCell.textContent = newData.zaman;
+        row.appendChild(timeCell);
+        
+        const valueCell = document.createElement("td");
+        valueCell.textContent = newData.HS1 ? parseFloat(newData.HS1).toFixed(2) : "-";
+        row.appendChild(valueCell);
+        
+        tableBody.appendChild(row);
+      }
+    }
+
     function updateChartsExceptSD1(newData) {
       const timestamp = newData["zaman"];
       if (timestamp === previousTimestamp) return;
       previousTimestamp = timestamp;
 
+      updateTempHumTable(newData);
+      updateHS1Table(newData);
+      
       fieldList.forEach(field => {
         if (field === "zaman" || field === "SD1") return;
         const val = parseFloat(newData[field]);
@@ -222,7 +397,10 @@
 
         if (timestamp !== previousSD1Timestamp && !isNaN(value)) {
           previousSD1Timestamp = timestamp;
+          previousSD1Value = value;
 
+          updateSD1Table(data);
+          
           const chart = chartData["SD1"];
           chart.labels.push(timestamp);
           chart.data.push(value);
