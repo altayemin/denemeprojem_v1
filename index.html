@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Sakarya Uygulamalı Bilimler Üniversitesi : DATALOGGER</title>
+  <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -124,7 +124,7 @@
   </style>
 </head>
 <body>
-  <h1>Sakarya Uygulamalı Bilimler Üniversitesi : DATALOGGER</h1>
+  <h1>Canlı Sensör Verileri</h1>
   <div class="controls">
     <button id="startBtn">Deneyi Başlat</button>
     <button id="pauseBtn" disabled>Deneyi Duraklat</button>
@@ -224,6 +224,28 @@
       SD1: "orange"
     };
 
+    function formatDateTime(timestamp) {
+      if (!timestamp) return "";
+      
+      if (timestamp.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+        return timestamp;
+      }
+      
+      if (timestamp.includes("T")) {
+        const date = new Date(timestamp);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      }
+      
+      return timestamp;
+    }
+
     function getColor(field) {
       if (field.startsWith("T")) return colors.T;
       if (field.startsWith("H")) return colors.H;
@@ -289,20 +311,21 @@
     }
 
     function updateTempHumTable(newData) {
+      const formattedTime = formatDateTime(newData.zaman);
       const tableBody = document.querySelector("#tempHumTable tbody");
       const existingRows = tableBody.querySelectorAll("tr");
       const lastRow = existingRows[existingRows.length - 1];
       
-      if (lastRow && lastRow.cells[0].textContent === newData.zaman) {
+      if (lastRow && lastRow.cells[0].textContent === formattedTime) {
         for (let i = 1; i < lastRow.cells.length; i++) {
-          const field = fieldList[i*2 - 1]; // T1, H1, T2, H2, ... sırasıyla
+          const field = fieldList[i*2 - 1];
           lastRow.cells[i].textContent = newData[field] ? parseFloat(newData[field]).toFixed(2) : "-";
         }
       } else {
         const row = document.createElement("tr");
         
         const timeCell = document.createElement("td");
-        timeCell.textContent = newData.zaman;
+        timeCell.textContent = formattedTime;
         row.appendChild(timeCell);
         
         for (let i = 1; i < fieldList.length - 2; i += 2) {
@@ -323,17 +346,18 @@
     }
 
     function updateSD1Table(newData) {
+      const formattedTime = formatDateTime(newData.zaman);
       const tableBody = document.querySelector("#sd1Table tbody");
       const existingRows = tableBody.querySelectorAll("tr");
       const lastRow = existingRows[existingRows.length - 1];
       
-      if (lastRow && lastRow.cells[0].textContent === newData.zaman) {
+      if (lastRow && lastRow.cells[0].textContent === formattedTime) {
         lastRow.cells[1].textContent = newData.SD1 ? parseFloat(newData.SD1).toFixed(2) : "-";
       } else {
         const row = document.createElement("tr");
         
         const timeCell = document.createElement("td");
-        timeCell.textContent = newData.zaman;
+        timeCell.textContent = formattedTime;
         row.appendChild(timeCell);
         
         const valueCell = document.createElement("td");
@@ -345,17 +369,18 @@
     }
 
     function updateHS1Table(newData) {
+      const formattedTime = formatDateTime(newData.zaman);
       const tableBody = document.querySelector("#hs1Table tbody");
       const existingRows = tableBody.querySelectorAll("tr");
       const lastRow = existingRows[existingRows.length - 1];
       
-      if (lastRow && lastRow.cells[0].textContent === newData.zaman) {
+      if (lastRow && lastRow.cells[0].textContent === formattedTime) {
         lastRow.cells[1].textContent = newData.HS1 ? parseFloat(newData.HS1).toFixed(2) : "-";
       } else {
         const row = document.createElement("tr");
         
         const timeCell = document.createElement("td");
-        timeCell.textContent = newData.zaman;
+        timeCell.textContent = formattedTime;
         row.appendChild(timeCell);
         
         const valueCell = document.createElement("td");
@@ -367,7 +392,7 @@
     }
 
     function updateChartsExceptSD1(newData) {
-      const timestamp = newData["zaman"];
+      const timestamp = formatDateTime(newData["zaman"]);
       if (timestamp === previousTimestamp) return;
       previousTimestamp = timestamp;
 
@@ -396,7 +421,7 @@
         const res = await fetch(SD1_API_URL);
         const data = await res.json();
 
-        const timestamp = data.zaman;
+        const timestamp = formatDateTime(data.zaman);
         const value = parseFloat(data.SD1);
 
         if (timestamp !== previousSD1Timestamp && !isNaN(value)) {
@@ -464,71 +489,70 @@
       location.reload();
     };
 
-document.getElementById("saveBtn").onclick = async () => {
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF("p", "mm", "a4");
+    document.getElementById("saveBtn").onclick = async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
 
-  // 1. Tüm grafikleri ekle (T1-H8, HS1 ve SD1)
-  const chartPairs = [
-    ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
-    ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
-  ];
+      // 1. Grafikleri ekle
+      const chartPairs = [
+        ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
+        ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
+      ];
 
-  // T1-H8 grafikleri (2 sayfa)
-  for (let page = 0; page < 2; page++) {
-    if (page > 0) pdf.addPage();
-    for (let i = page * 4; i < (page + 1) * 4; i++) {
-      const [temp, hum] = chartPairs[i];
-      const tempCanvas = document.getElementById(temp);
-      const humCanvas = document.getElementById(hum);
+      for (let page = 0; page < 2; page++) {
+        if (page > 0) pdf.addPage();
+        for (let i = page * 4; i < (page + 1) * 4; i++) {
+          const [temp, hum] = chartPairs[i];
+          const tempCanvas = document.getElementById(temp);
+          const humCanvas = document.getElementById(hum);
 
-      const tempImg = tempCanvas.toDataURL("image/png", 1.0);
-      const humImg = humCanvas.toDataURL("image/png", 1.0);
+          const tempImg = tempCanvas.toDataURL("image/png", 1.0);
+          const humImg = humCanvas.toDataURL("image/png", 1.0);
+
+          pdf.setFontSize(8);
+          pdf.text(temp, 10, 5 + (i % 4) * 50);
+          pdf.text(hum, 110, 5 + (i % 4) * 50);
+
+          pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
+          pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
+        }
+      }
+
+      // HS1 ve SD1 grafikleri
+      pdf.addPage();
+      
+      const hs1Canvas = document.getElementById("HS1");
+      const sd1Canvas = document.getElementById("SD1");
+
+      const hs1Img = hs1Canvas.toDataURL("image/png", 1.0);
+      const sd1Img = sd1Canvas.toDataURL("image/png", 1.0);
 
       pdf.setFontSize(8);
-      pdf.text(temp, 10, 5 + (i % 4) * 50);
-      pdf.text(hum, 110, 5 + (i % 4) * 50);
+      pdf.text("HS1", 10, 5);
+      pdf.text("SD1", 110, 5);
 
-      pdf.addImage(tempImg, "PNG", 10, 10 + (i % 4) * 50, 90, 45);
-      pdf.addImage(humImg, "PNG", 110, 10 + (i % 4) * 50, 90, 45);
-    }
-  }
+      pdf.addImage(hs1Img, "PNG", 10, 10, 90, 45);
+      pdf.addImage(sd1Img, "PNG", 110, 10, 90, 45);
 
-  // HS1 ve SD1 grafikleri (yeni sayfa)
-  pdf.addPage();
-  
-  const hs1Canvas = document.getElementById("HS1");
-  const sd1Canvas = document.getElementById("SD1");
+      // 2. Tabloları ekle
+      pdf.addPage();
+      
+      // DHT22 Tablosu
+      const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
+      const dht22Img = dht22Table.toDataURL("image/png");
+      pdf.addImage(dht22Img, "PNG", 10, 10, 190, dht22Table.height * 190 / dht22Table.width);
+      
+      // SD1 ve HS1 Tabloları
+      pdf.addPage();
+      
+      const sd1Table = await html2canvas(document.querySelector("#sd1Table"));
+      const hs1Table = await html2canvas(document.querySelector("#hs1Table"));
+      
+      pdf.addImage(sd1Table.toDataURL("image/png"), "PNG", 10, 10, 90, sd1Table.height * 90 / sd1Table.width);
+      pdf.addImage(hs1Table.toDataURL("image/png"), "PNG", 110, 10, 90, hs1Table.height * 90 / hs1Table.width);
 
-  const hs1Img = hs1Canvas.toDataURL("image/png", 1.0);
-  const sd1Img = sd1Canvas.toDataURL("image/png", 1.0);
-
-  pdf.setFontSize(8);
-  pdf.text("HS1", 10, 5);
-  pdf.text("SD1", 110, 5);
-
-  pdf.addImage(hs1Img, "PNG", 10, 10, 90, 45);
-  pdf.addImage(sd1Img, "PNG", 110, 10, 90, 45);
-
-  // 2. Tabloları ekle
-  pdf.addPage();
-  
-  // DHT22 Tablosu
-  const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
-  const dht22Img = dht22Table.toDataURL("image/png");
-  pdf.addImage(dht22Img, "PNG", 10, 10, 190, dht22Table.height * 190 / dht22Table.width);
-  
-  // SD1 ve HS1 Tabloları (yan yana)
-  pdf.addPage();
-  
-  const sd1Table = await html2canvas(document.querySelector("#sd1Table"));
-  const hs1Table = await html2canvas(document.querySelector("#hs1Table"));
-  
-  pdf.addImage(sd1Table.toDataURL("image/png"), "PNG", 10, 10, 90, sd1Table.height * 90 / sd1Table.width);
-  pdf.addImage(hs1Table.toDataURL("image/png"), "PNG", 110, 10, 90, hs1Table.height * 90 / hs1Table.width);
-
-  pdf.save("veriler.pdf");
-};
+      pdf.save("veriler.pdf");
+    };
 
     createCharts();
   </script>
