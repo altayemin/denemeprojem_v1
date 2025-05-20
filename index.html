@@ -1,120 +1,191 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <title>Veri Görselleştirme</title>
+  <meta charset="UTF-8">
+  <title>Canlı Sensör Verileri</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      margin: 0;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .controls button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+    }
+    .controls button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+    .block {
+      width: 48%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .bottom-block {
+      margin-top: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .chart-container {
+      flex: 0 0 48%;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    .chart-container h3 {
+      text-align: center;
+      font-size: 1.1rem;
+      margin-bottom: 5px;
+    }
+    .last-value {
+      text-align: center;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    @media (max-width: 768px) {
+      .block, .chart-container {
+        width: 100%;
+        flex: 0 0 100%;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>Veri Görselleştirme</h1>
-  <button id="saveBtn">Kaydet (PDF)</button>
-  <div id="charts-container" style="display: flex; flex-wrap: wrap;"></div>
-
-  <!-- 3 Tablonun Eklendiği Alan -->
-  <div style="margin-top: 60px;">
-    <h2>Sıcaklık ve Nem Verileri</h2>
-    <table id="tempHumTable" border="1" cellpadding="5" cellspacing="0"></table>
-
-    <h2 style="margin-top: 40px;">Su Debisi Verileri</h2>
-    <table id="sd1Table" border="1" cellpadding="5" cellspacing="0"></table>
-
-    <h2 style="margin-top: 40px;">HS1 Verileri</h2>
-    <table id="hs1Table" border="1" cellpadding="5" cellspacing="0"></table>
+  <h1>Canlı Sensör Verileri</h1>
+  <div class="controls">
+    <button id="startBtn">Deneyi Başlat</button>
+    <button id="pauseBtn" disabled>Deneyi Duraklat</button>
+    <button id="resumeBtn" disabled>Deneye Devam Et</button>
+    <button id="resetBtn">Sıfırla</button>
+    <button id="saveBtn" disabled>Kaydet (PDF)</button>
   </div>
 
+  <div class="wrapper">
+    <div class="block" id="tempCharts"></div>
+    <div class="block" id="humCharts"></div>
+  </div>
+  <div class="bottom-block" id="extraCharts"></div>
+
   <script>
+    const MAIN_API_URL = "https://script.google.com/macros/s/AKfycbxufL2ju4GLXD07sO6mUOMgthyaYu4mZNVZB10cp6ZuuCv2cDuAk5QTEaAT-fsqcCfVTQ/exec";
+    const SD1_API_URL = "https://script.google.com/macros/s/AKfycbxviHeIxCMCTQGAW90IAIxeuQ6aKuvJo-OL8kSWbgFLJSAIRRG0DHjOntaFZPFT6aMp/exec";
+    const INTERVAL = 5000;
+    const MAX_POINTS = 20;
+
+    let chartData = {};
+    let charts = {};
+    let fetchInterval;
+    let isRunning = false;
+    let previousTimestamp = "";
+    let previousSD1Timestamp = "";
+    let previousSD1Value = null;
+
     const fieldList = [
-      "zaman",
-      "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
+      "zaman", "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
       "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
       "HS1", "SD1"
     ];
 
-    const chartData = {};
-    const charts = {};
-    let previousTimestamp = null;
-    let previousSD1Timestamp = null;
-    let previousSD1Value = null;
-    const MAX_POINTS = 30;
+    const colors = {
+      T: "red",
+      H: "blue",
+      HS1: "green",
+      SD1: "orange"
+    };
 
-    function createCharts() {
-      const container = document.getElementById("charts-container");
-      fieldList.forEach(field => {
-        if (field === "zaman") return;
-        const div = document.createElement("div");
-        div.style.width = "400px";
-        div.style.height = "250px";
-        div.style.margin = "10px";
-        div.innerHTML = `<canvas id="${field}"></canvas><div id="${field}-value">Son Değer: -</div>`;
-        container.appendChild(div);
+    function getColor(field) {
+      if (field.startsWith("T")) return colors.T;
+      if (field.startsWith("H")) return colors.H;
+      if (field === "HS1") return colors.HS1;
+      if (field === "SD1") return colors.SD1;
+      return "gray";
+    }
 
-        chartData[field] = {
-          labels: [],
-          data: []
-        };
+    function createChartBox(field, containerId) {
+      const container = document.getElementById(containerId);
+      const div = document.createElement("div");
+      div.className = "chart-container";
 
-        charts[field] = new Chart(document.getElementById(field), {
-          type: "line",
-          data: {
-            labels: chartData[field].labels,
-            datasets: [{
-              label: field,
-              data: chartData[field].data,
-              fill: false,
-              borderColor: "blue",
-              tension: 0.1
-            }]
-          },
-          options: {
-            responsive: false,
-            maintainAspectRatio: false,
-            scales: {
-              x: {
-                ticks: { maxRotation: 90, minRotation: 45 }
-              },
-              y: {
-                beginAtZero: true
-              }
-            }
-          }
-        });
+      const valueDiv = document.createElement("div");
+      valueDiv.className = "last-value";
+      valueDiv.id = `${field}-value`;
+      valueDiv.textContent = "Son Değer: -";
+
+      const canvas = document.createElement("canvas");
+      canvas.id = field;
+
+      div.innerHTML = `<h3>${field}</h3>`;
+      div.appendChild(valueDiv);
+      div.appendChild(canvas);
+      container.appendChild(div);
+
+      chartData[field] = { labels: [], data: [] };
+
+      charts[field] = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: chartData[field].labels,
+          datasets: [{
+            label: field,
+            data: chartData[field].data,
+            borderColor: getColor(field),
+            backgroundColor: getColor(field),
+            fill: false,
+            tension: 0.3,
+            pointRadius: 3,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { x: { display: true }, y: { beginAtZero: false } }
+        }
       });
     }
 
-    function createTableHeaders() {
-      const tempHumTable = document.getElementById("tempHumTable");
-      const thRow = document.createElement("tr");
-      thRow.innerHTML = "<th>zaman</th>";
-      for (let i = 1; i <= 8; i++) {
-        thRow.innerHTML += `<th>T${i}</th><th>H${i}</th>`;
-      }
-      tempHumTable.appendChild(thRow);
-
-      document.getElementById("sd1Table").innerHTML = "<tr><th>zaman</th><th>SD1</th></tr>";
-      document.getElementById("hs1Table").innerHTML = "<tr><th>zaman</th><th>HS1</th></tr>";
-    }
-
-    function appendToTempHumTable(data) {
-      const row = document.createElement("tr");
-      row.innerHTML = `<td>${data.zaman}</td>`;
-      for (let i = 1; i <= 8; i++) {
-        row.innerHTML += `<td>${data[`T${i}`]}</td><td>${data[`H${i}`]}</td>`;
-      }
-      document.getElementById("tempHumTable").appendChild(row);
-    }
-
-    function appendToHS1Table(data) {
-      const row = document.createElement("tr");
-      row.innerHTML = `<td>${data.zaman}</td><td>${data.HS1}</td>`;
-      document.getElementById("hs1Table").appendChild(row);
-    }
-
-    function appendToSD1Table(data) {
-      const row = document.createElement("tr");
-      row.innerHTML = `<td>${data.zaman}</td><td>${data.SD1}</td>`;
-      document.getElementById("sd1Table").appendChild(row);
+    function createCharts() {
+      fieldList.forEach(field => {
+        if (field === "zaman") return;
+        if (field === "HS1" || field === "SD1") {
+          createChartBox(field, "extraCharts");
+        } else if (field.startsWith("T")) {
+          createChartBox(field, "tempCharts");
+        } else if (field.startsWith("H")) {
+          createChartBox(field, "humCharts");
+        }
+      });
     }
 
     function updateChartsExceptSD1(newData) {
@@ -137,55 +208,78 @@
           charts[field].update();
         }
       });
-
-      appendToTempHumTable(newData);
-      appendToHS1Table(newData);
-    }
-
-    async function fetchData() {
-      try {
-        const response = await fetch("data.csv");
-        const csvText = await response.text();
-        const lines = csvText.trim().split("\n");
-        const lastLine = lines[lines.length - 1];
-        const values = lastLine.split(",");
-        const newData = {};
-        fieldList.forEach((field, index) => {
-          newData[field] = values[index];
-        });
-        updateChartsExceptSD1(newData);
-      } catch (error) {
-        console.error("Veri alınamadı:", error);
-      }
     }
 
     async function fetchSD1Data() {
       try {
-        const response = await fetch("sd1.csv");
-        const csvText = await response.text();
-        const lines = csvText.trim().split("\n");
-        const lastLine = lines[lines.length - 1];
-        const [timestamp, value] = lastLine.split(",");
+        const res = await fetch(SD1_API_URL);
+        const data = await res.json();
+
+        const timestamp = data.zaman;
+        const value = parseFloat(data.SD1);
+
         if (timestamp !== previousSD1Timestamp && !isNaN(value)) {
           previousSD1Timestamp = timestamp;
           previousSD1Value = value;
 
           const chart = chartData["SD1"];
           chart.labels.push(timestamp);
-          chart.data.push(parseFloat(value));
+          chart.data.push(value);
           if (chart.labels.length > MAX_POINTS) {
             chart.labels.shift();
             chart.data.shift();
           }
-          document.getElementById("SD1-value").textContent = `Son Değer: ${parseFloat(value).toFixed(2)}`;
+          document.getElementById("SD1-value").textContent = `Son Değer: ${value.toFixed(2)}`;
           charts["SD1"].update();
-
-          appendToSD1Table({ zaman: timestamp, SD1: value });
         }
-      } catch (error) {
-        console.error("SD1 verisi alınamadı:", error);
+      } catch (err) {
+        console.error("SD1 verisi alınamadı:", err);
       }
     }
+
+    async function fetchData() {
+      try {
+        const res = await fetch(MAIN_API_URL);
+        const json = await res.json();
+        updateChartsExceptSD1(json);
+      } catch (err) {
+        console.error("Veri çekme hatası:", err);
+      }
+
+      fetchSD1Data();
+    }
+
+    document.getElementById("startBtn").onclick = () => {
+      if (!isRunning) {
+        fetchData();
+        fetchInterval = setInterval(fetchData, INTERVAL);
+        isRunning = true;
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("pauseBtn").disabled = false;
+      }
+    };
+
+    document.getElementById("pauseBtn").onclick = () => {
+      clearInterval(fetchInterval);
+      isRunning = false;
+      document.getElementById("pauseBtn").disabled = true;
+      document.getElementById("resumeBtn").disabled = false;
+      document.getElementById("saveBtn").disabled = false;
+    };
+
+    document.getElementById("resumeBtn").onclick = () => {
+      if (!isRunning) {
+        fetchInterval = setInterval(fetchData, INTERVAL);
+        isRunning = true;
+        document.getElementById("pauseBtn").disabled = false;
+        document.getElementById("resumeBtn").disabled = true;
+        document.getElementById("saveBtn").disabled = true;
+      }
+    };
+
+    document.getElementById("resetBtn").onclick = () => {
+      location.reload();
+    };
 
     document.getElementById("saveBtn").onclick = async () => {
       const { jsPDF } = window.jspdf;
@@ -216,37 +310,20 @@
       }
 
       pdf.addPage();
-      pdf.addImage(document.getElementById("HS1").toDataURL("image/png", 1.0), "PNG", 10, 10, 90, 45);
-      pdf.addImage(document.getElementById("SD1").toDataURL("image/png", 1.0), "PNG", 110, 10, 90, 45);
 
-      // Tablolar
-      const tempTableCanvas = await html2canvas(document.getElementById("tempHumTable"));
-      const tempImg = tempTableCanvas.toDataURL("image/png", 1.0);
-      pdf.addPage();
-      pdf.addImage(tempImg, "PNG", 10, 10, 190, 0);
+      const hsImg = document.getElementById("HS1").toDataURL("image/png", 1.0);
+      const sdImg = document.getElementById("SD1").toDataURL("image/png", 1.0);
 
-      const sd1Canvas = await html2canvas(document.getElementById("sd1Table"));
-      const sd1Img = sd1Canvas.toDataURL("image/png", 1.0);
-      pdf.addPage();
-      pdf.addImage(sd1Img, "PNG", 10, 10, 190, 0);
-
-      const hs1Canvas = await html2canvas(document.getElementById("hs1Table"));
-      const hs1Img = hs1Canvas.toDataURL("image/png", 1.0);
-      pdf.addPage();
-      pdf.addImage(hs1Img, "PNG", 10, 10, 190, 0);
+      pdf.addImage(hsImg, "PNG", 10, 10, 90, 45);
+      pdf.addImage(sdImg, "PNG", 110, 10, 90, 45);
 
       pdf.save("veriler.pdf");
     };
 
     createCharts();
-    createTableHeaders();
-    setInterval(fetchData, 3000);
-    setInterval(fetchSD1Data, 3000);
   </script>
 </body>
 </html>
-
-
 
 
 
