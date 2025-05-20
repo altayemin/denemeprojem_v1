@@ -493,7 +493,7 @@
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF("p", "mm", "a4");
 
-  // 1. Grafikleri ekle
+  // Grafik çiftleri
   const chartPairs = [
     ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
     ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
@@ -502,42 +502,47 @@
   // Grafik boyutları ve konumları için ayarlar
   const chartWidth = 85;
   const chartHeight = 40;
-  const marginTop = 15; // Üst boşluk artırıldı
-  const marginLeft = 10;
-  const marginRight = 10;
+  const marginTop = 15;
+  const marginLeft = 12;
   const gapX = 10; // Yatay boşluk
-  const gapY = 15; // Dikey boşluk artırıldı
+  const gapY = 15; // Dikey boşluk
+  const labelOffset = 5; // Etiketler için boşluk
 
+  // Her sayfada 4 grafik (2x2 düzen)
   for (let page = 0; page < 2; page++) {
     if (page > 0) pdf.addPage();
     
-    for (let i = page * 4; i < (page + 1) * 4; i++) {
-      const [temp, hum] = chartPairs[i];
-      const tempCanvas = document.getElementById(temp);
-      const humCanvas = document.getElementById(hum);
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 2; col++) {
+        const pairIndex = page * 4 + row * 2 + col;
+        if (pairIndex >= chartPairs.length) continue;
+        
+        const [temp, hum] = chartPairs[pairIndex];
+        const tempCanvas = document.getElementById(temp);
+        const humCanvas = document.getElementById(hum);
 
-      const tempImg = tempCanvas.toDataURL("image/png", 1.0);
-      const humImg = humCanvas.toDataURL("image/png", 1.0);
+        const tempImg = tempCanvas.toDataURL("image/png", 1.0);
+        const humImg = humCanvas.toDataURL("image/png", 1.0);
 
-      // Pozisyon hesaplamaları
-      const row = Math.floor((i % 4) / 2);
-      const col = (i % 4) % 2;
-      const x1 = marginLeft + col * (chartWidth + gapX + chartWidth + gapX);
-      const x2 = x1 + chartWidth + gapX;
-      const y = marginTop + row * (chartHeight + gapY);
+        // Pozisyon hesaplamaları
+        const x1 = marginLeft + col * (chartWidth + gapX);
+        const x2 = x1;
+        const y1 = marginTop + row * (chartHeight * 2 + gapY * 1.5);
+        const y2 = y1 + chartHeight + gapY/2;
 
-      // Grafik etiketleri (daha düzenli ve ayrı)
-      pdf.setFontSize(10);
-      pdf.text(temp, x1 + 5, y - 5);
-      pdf.text(hum, x2 + 5, y - 5);
+        // Grafik etiketleri
+        pdf.setFontSize(10);
+        pdf.text(temp, x1 + labelOffset, y1 - labelOffset);
+        pdf.text(hum, x2 + labelOffset, y2 - labelOffset);
 
-      // Grafikler
-      pdf.addImage(tempImg, "PNG", x1, y, chartWidth, chartHeight);
-      pdf.addImage(humImg, "PNG", x2, y, chartWidth, chartHeight);
+        // Grafikler
+        pdf.addImage(tempImg, "PNG", x1, y1, chartWidth, chartHeight);
+        pdf.addImage(humImg, "PNG", x2, y2, chartWidth, chartHeight);
+      }
     }
   }
 
-  // 2. HS1 ve SD1 grafikleri
+  // HS1 ve SD1 grafikleri (tek sayfada yan yana)
   pdf.addPage();
   
   const hs1Canvas = document.getElementById("HS1");
@@ -549,26 +554,21 @@
   // HS1 ve SD1 için konumlandırma
   const extraChartY = 20;
   pdf.setFontSize(10);
-  pdf.text("HS1", marginLeft + 5, extraChartY - 5);
-  pdf.text("SD1", marginLeft + chartWidth + gapX + 5, extraChartY - 5);
+  pdf.text("HS1", marginLeft + labelOffset, extraChartY - labelOffset);
+  pdf.text("SD1", marginLeft + chartWidth + gapX + labelOffset, extraChartY - labelOffset);
 
   pdf.addImage(hs1Img, "PNG", marginLeft, extraChartY, chartWidth, chartHeight);
   pdf.addImage(sd1Img, "PNG", marginLeft + chartWidth + gapX, extraChartY, chartWidth, chartHeight);
 
-  // 3. Tabloları ekle (öncekiyle aynı)
+  // Tablolar (öncekiyle aynı)
   pdf.addPage();
-  
-  // DHT22 Tablosu
   const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
   const dht22Img = dht22Table.toDataURL("image/png");
   pdf.addImage(dht22Img, "PNG", 10, 10, 190, dht22Table.height * 190 / dht22Table.width);
   
-  // SD1 ve HS1 Tabloları
   pdf.addPage();
-  
   const sd1Table = await html2canvas(document.querySelector("#sd1Table"));
   const hs1Table = await html2canvas(document.querySelector("#hs1Table"));
-  
   pdf.addImage(sd1Table.toDataURL("image/png"), "PNG", 10, 10, 90, sd1Table.height * 90 / sd1Table.width);
   pdf.addImage(hs1Table.toDataURL("image/png"), "PNG", 110, 10, 90, hs1Table.height * 90 / hs1Table.width);
 
