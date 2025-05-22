@@ -337,7 +337,7 @@
       
       if (lastRow && lastRow.cells[0].textContent === formattedTime) {
         for (let i = 1; i < lastRow.cells.length; i++) {
-          const field = fieldList[i*2 - 1];
+          const field = fieldList[i];
           lastRow.cells[i].textContent = newData[field] ? parseFloat(newData[field]).toFixed(2) : "-";
         }
       } else {
@@ -347,17 +347,11 @@
         timeCell.textContent = formattedTime;
         row.appendChild(timeCell);
         
-        for (let i = 1; i < fieldList.length - 2; i += 2) {
-          const tField = fieldList[i];
-          const hField = fieldList[i+1];
-          
-          const tCell = document.createElement("td");
-          tCell.textContent = newData[tField] ? parseFloat(newData[tField]).toFixed(2) : "-";
-          row.appendChild(tCell);
-          
-          const hCell = document.createElement("td");
-          hCell.textContent = newData[hField] ? parseFloat(newData[hField]).toFixed(2) : "-";
-          row.appendChild(hCell);
+        for (let i = 1; i < fieldList.length - 2; i++) {
+          const field = fieldList[i];
+          const cell = document.createElement("td");
+          cell.textContent = newData[field] ? parseFloat(newData[field]).toFixed(2) : "-";
+          row.appendChild(cell);
         }
         
         tableBody.appendChild(row);
@@ -531,9 +525,12 @@
       const rows = table.querySelectorAll("tr");
       const values = [];
       
+      // Alanın tablodaki sütun indeksini bul
+      const fieldIndex = fieldList.indexOf(field);
+      if (fieldIndex === -1) return values;
+      
       rows.forEach(row => {
-        const index = fieldList.indexOf(field);
-        const cell = row.cells[Math.floor(index / 2)];
+        const cell = row.cells[fieldIndex];
         if (cell && cell.textContent !== "-") {
           values.push(parseFloat(cell.textContent));
         }
@@ -561,9 +558,10 @@
       const statsTable = document.querySelector("#statsTable tbody");
       statsTable.innerHTML = "";
       
+      // Doğru sırayla hesaplanacak alanlar (SD1 dahil)
       const fieldsToCalculate = [
-        "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8",
-        "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8",
+        "T1", "H1", "T2", "H2", "T3", "H3", "T4", "H4",
+        "T5", "H5", "T6", "H6", "T7", "H7", "T8", "H8",
         "SD1"
       ];
       
@@ -724,7 +722,7 @@
       pdf.addImage(hs1Img, "PNG", marginLeft, extraChartY, chartWidth, chartHeight);
       pdf.addImage(sd1Img, "PNG", marginLeft + chartWidth + gapX, extraChartY, chartWidth, chartHeight);
 
-      // Tablolar (öncekiyle aynı)
+      // Tablolar
       pdf.addPage();
       const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
       const dht22Img = dht22Table.toDataURL("image/png");
