@@ -10,11 +10,13 @@ import csv
 import os
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import numpy as np
+from statistics import mode
 
 # Constants
 DESKTOP_PATH = os.path.expanduser("~/Desktop")
-GOOGLE_SHEETS_URL_DHT = "https://script.google.com/macros/s/AKfycbzbljWuNrXPW7UHn9ON7tTLZQH2auZNuC8Q4Is-FafSTP7Jzn7C_xwZZE8Zj5bSWhtWxA/exec"
-GOOGLE_SHEETS_URL_SD = "https://script.google.com/macros/s/AKfycby95FK2-4Mzn8c0BtRx352R3EHm_rZ0FpHl4U0KES6HZOYbEBOFbgf5xIz0TfWFkCrK/exec"
+GOOGLE_SHEETS_URL_DHT = "YOUR_GOOGLE_SCRIPT_URL_DHT"
+GOOGLE_SHEETS_URL_SD = "YOUR_GOOGLE_SCRIPT_URL_SD"
 DHT_SENSOR = Adafruit_DHT.DHT22
 DHT_PINS = [5, 6, 12, 13, 19, 16, 26, 20]
 SERIAL_PORT = "/dev/ttyUSB0"
@@ -184,12 +186,11 @@ def show_graph_page():
                     reader = csv.reader(f)
                     headers = next(reader)
                     
-                    # Doğru sütun indeksini bulmak için sensör tipine ve numarasına göre
-                    sensor_num = int(sensor[1:])  # T veya H'den sonraki sayıyı al
+                    sensor_num = int(sensor[1:])
                     if sensor.startswith('T'):
-                        col_index = 1 + (sensor_num-1)*2  # T değerleri 1,3,5,... sütunlarda
+                        col_index = 1 + (sensor_num-1)*2
                     else:
-                        col_index = 2 + (sensor_num-1)*2  # H değerleri 2,4,6,... sütunlarda
+                        col_index = 2 + (sensor_num-1)*2
                     
                     times = []
                     values = []
@@ -242,6 +243,102 @@ def show_graph_page():
         
         canvas.draw()
 
+def show_calculations_page():
+    calc_page = tk.Toplevel(root)
+    calc_page.title("Hesaplamalar")
+    calc_page.attributes('-fullscreen', True)
+    calc_page.configure(bg="#e6f2ff")
+
+    btn_back = ttk.Button(calc_page, text="Ana Sayfa", command=calc_page.destroy)
+    btn_back.pack(pady=5)
+
+    # Sensor buttons
+    temp_frame = tk.Frame(calc_page, bg="#e6f2ff")
+    temp_frame.pack(fill='x', pady=2)
+    for i in range(1, 9):
+        ttk.Button(temp_frame, text=f"T{i}", command=lambda i=i: calculate_stats(f'T{i}'), width=3).pack(side='left', padx=2)
+    ttk.Button(temp_frame, text="SD1", command=lambda: calculate_stats('SD1'), width=3).pack(side='left', padx=2)
+
+    hum_frame = tk.Frame(calc_page, bg="#e6f2ff")
+    hum_frame.pack(fill='x', pady=2)
+    for i in range(1, 9):
+        ttk.Button(hum_frame, text=f"H{i}", command=lambda i=i: calculate_stats(f'H{i}'), width=3).pack(side='left', padx=2)
+
+    # Stats display
+    stats_frame = tk.Frame(calc_page, bg="#e6f2ff", padx=10, pady=10)
+    stats_frame.pack(fill='both', expand=True)
+
+    global stats_labels
+    stats_labels = {
+        'mean': ttk.Label(stats_frame, text="Ortalama: --", font=MEDIUM_FONT),
+        'median': ttk.Label(stats_frame, text="Medyan: --", font=MEDIUM_FONT),
+        'std': ttk.Label(stats_frame, text="Standart Sapma: --", font=MEDIUM_FONT),
+        'min': ttk.Label(stats_frame, text="Minimum: --", font=MEDIUM_FONT),
+        'max': ttk.Label(stats_frame, text="Maksimum: --", font=MEDIUM_FONT),
+        'mode': ttk.Label(stats_frame, text="Mod: --", font=MEDIUM_FONT)
+    }
+
+    for label in stats_labels.values():
+        label.pack(anchor='w', pady=2)
+
+def calculate_stats(sensor):
+    values = []
+    
+    try:
+        if sensor.startswith('T') or sensor.startswith('H'):
+            filename = os.path.join(DESKTOP_PATH, "dht_data.csv")
+            with open(filename, 'r') as f:
+                reader = csv.reader(f)
+                next(reader)
+                
+                sensor_num = int(sensor[1:])
+                col_index = 1 + (sensor_num-1)*2 if sensor.startswith('T') else 2 + (sensor_num-1)*2
+                
+                rows = list(reader)
+                start_idx = max(0, len(rows) - veri_sayisi_dht)
+                
+                for row in rows[start_idx:]:
+                    try:
+                        values.append(float(row[col_index]))
+                    except:
+                        continue
+        elif sensor == 'SD1':
+            filename = os.path.join(DESKTOP_PATH, "flow_data.csv")
+            with open(filename, 'r') as f:
+                reader = csv.reader(f)
+                next(reader)
+                
+                rows = list(reader)
+                start_idx = max(0, len(rows) - veri_sayisi_sd)
+                
+                for row in rows[start_idx:]:
+                    try:
+                        values.append(float(row[1]))
+                    except:
+                        continue
+
+        if len(values) > 0:
+            rounded_values = [round(v, 1) for v in values]
+            
+            stats_labels['mean'].config(text=f"Ortalama: {np.mean(values):.2f}")
+            stats_labels['median'].config(text=f"Medyan: {np.median(values):.2f}")
+            stats_labels['std'].config(text=f"Standart Sapma: {np.std(values):.2f}")
+            stats_labels['min'].config(text=f"Minimum: {min(values):.2f}")
+            stats_labels['max'].config(text=f"Maksimum: {max(values):.2f}")
+            
+            try:
+                mod_value = mode(rounded_values)
+                stats_labels['mode'].config(text=f"Mod: {mod_value:.1f}")
+            except:
+                stats_labels['mode'].config(text="Mod: Belirsiz")
+        else:
+            for label in stats_labels.values():
+                label.config(text="Veri yok!")
+
+    except Exception as e:
+        for label in stats_labels.values():
+            label.config(text=f"Hata: {str(e)}")
+
 def start_experiment():
     global running, dht_thread, sd_thread, veri_sayisi_dht, veri_sayisi_sd
     if not running:
@@ -256,14 +353,17 @@ def start_experiment():
         dht_thread.start()
         sd_thread.start()
         btn_show_graph.config(state='disabled')
+        btn_calculations.config(state='disabled')
 
 def stop_experiment():
     pause_event.clear()
     btn_show_graph.config(state='normal')
+    btn_calculations.config(state='normal')
 
 def resume_experiment():
     pause_event.set()
     btn_show_graph.config(state='disabled')
+    btn_calculations.config(state='disabled')
 
 def stop_and_exit():
     global running
@@ -310,25 +410,22 @@ style.configure('Status.TFrame', background='#e6f2ff', relief='sunken', borderwi
 header = ttk.Label(root, text="SUBÜ - DATALOGGER", style='Header.TLabel')
 header.place(relx=0.5, rely=0.02, anchor='n')
 
-# Main content area - Using full width now
+# Main content area
 main_frame = tk.Frame(root, bg="#e6f2ff")
 main_frame.place(x=0, y=40, width=480, height=220)
 
-# Left column - Temperature and Humidity values (using full width)
+# Left column - Sensor values
 sensor_frame = tk.Frame(main_frame, bg="#e6f2ff")
 sensor_frame.place(x=10, y=0, width=250, height=220)
 
-# Temperature labels
 for i in range(1, 9):
     labels[f"T{i}"] = ttk.Label(sensor_frame, text=f"T{i}: -- °C", font=SENSOR_FONT)
     labels[f"T{i}"].place(x=10, y=(i-1)*25)
 
-# Humidity labels
 for i in range(1, 9):
     labels[f"H{i}"] = ttk.Label(sensor_frame, text=f"H{i}: -- %", font=SENSOR_FONT)
     labels[f"H{i}"].place(x=120, y=(i-1)*25)
 
-# SD label
 labels['SD1'] = ttk.Label(sensor_frame, text="SD1: -- L/dk", font=SENSOR_FONT)
 labels['SD1'].place(x=10, y=200)
 
@@ -336,25 +433,21 @@ labels['SD1'].place(x=10, y=200)
 status_frame = tk.Frame(main_frame, bg="#e6f2ff")
 status_frame.place(x=270, y=0, width=200, height=220)
 
-# DHT Status
 dht_status_frame = ttk.LabelFrame(status_frame, text="Sıcaklık/Nem", width=180, height=50)
 dht_status_frame.pack(pady=5)
 status_dht = ttk.Label(dht_status_frame, text="Bekliyor", style='Status.TLabel')
 status_dht.place(relx=0.5, rely=0.5, anchor='center')
 
-# SD Status
 sd_status_frame = ttk.LabelFrame(status_frame, text="Su Debisi", width=180, height=50)
 sd_status_frame.pack(pady=5)
 status_sd = ttk.Label(sd_status_frame, text="Bekliyor", style='Status.TLabel')
 status_sd.place(relx=0.5, rely=0.5, anchor='center')
 
-# CPU Temperature
 cpu_frame = ttk.LabelFrame(status_frame, text="CPU Sıcaklık", width=180, height=50)
 cpu_frame.pack(pady=5)
 status_cpu = ttk.Label(cpu_frame, text="-- °C", style='Status.TLabel')
 status_cpu.place(relx=0.5, rely=0.5, anchor='center')
 
-# Data counters
 data_frame = ttk.LabelFrame(status_frame, text="Veri Sayacı", width=180, height=50)
 data_frame.pack(pady=5)
 data_counter_dht = ttk.Label(data_frame, text="DHT: 0", style='Status.TLabel')
@@ -362,7 +455,7 @@ data_counter_dht.place(relx=0.3, rely=0.5, anchor='center')
 data_counter_sd = ttk.Label(data_frame, text="Debi: 0", style='Status.TLabel')
 data_counter_sd.place(relx=0.7, rely=0.5, anchor='center')
 
-# Control buttons - Left side (Start, Stop, Resume)
+# Control buttons - Left side
 btn_left_frame = tk.Frame(root, bg="#e6f2ff")
 btn_left_frame.place(x=10, y=270, width=240, height=50)
 
@@ -373,14 +466,16 @@ btn_stop.pack(side='left', padx=5)
 btn_resume = ttk.Button(btn_left_frame, text="Devam", command=resume_experiment, state='disabled', width=10)
 btn_resume.pack(side='left', padx=5)
 
-# Control buttons - Right side (Graph, Exit)
+# Control buttons - Right side
 btn_right_frame = tk.Frame(root, bg="#e6f2ff")
 btn_right_frame.place(x=260, y=270, width=210, height=50)
 
+btn_calculations = ttk.Button(btn_right_frame, text="Hesaplamalar", command=show_calculations_page, width=10)
+btn_calculations.pack(side='top', padx=5)
 btn_show_graph = ttk.Button(btn_right_frame, text="Grafikler", command=show_graph_page, width=10, state='disabled')
-btn_show_graph.pack(side='left', padx=5)
+btn_show_graph.pack(side='top', padx=5)
 btn_exit = ttk.Button(btn_right_frame, text="Çıkış", command=stop_and_exit, width=10)
-btn_exit.pack(side='left', padx=5)
+btn_exit.pack(side='top', padx=5)
 
 # Start the application
 update_buttons()

@@ -131,6 +131,7 @@
     <button id="resumeBtn" disabled>Deneye Devam Et</button>
     <button id="resetBtn">Sıfırla</button>
     <button id="saveBtn" disabled>Kaydet (PDF)</button>
+    <button id="calculateBtn" disabled>Hesapla</button>
   </div>
 
   <div class="wrapper">
@@ -194,6 +195,24 @@
           <tbody></tbody>
         </table>
       </div>
+    </div>
+
+    <div class="data-table">
+      <h3>İstatistik Tablosu</h3>
+      <table id="statsTable">
+        <thead>
+          <tr>
+            <th>-</th>
+            <th>Ortalama</th>
+            <th>Standart Sapma</th>
+            <th>Medyan</th>
+            <th>Mod</th>
+            <th>Minimum</th>
+            <th>Maksimum</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
@@ -457,6 +476,149 @@
       fetchSD1Data();
     }
 
+    // İstatistiksel Hesaplama Fonksiyonları
+    function calculateMean(values) {
+      const sum = values.reduce((a, b) => a + b, 0);
+      return sum / values.length;
+    }
+
+    function calculateStdDev(values) {
+      const mean = calculateMean(values);
+      const squareDiffs = values.map(val => Math.pow(val - mean, 2));
+      const avgSquareDiff = calculateMean(squareDiffs);
+      return Math.sqrt(avgSquareDiff);
+    }
+
+    function calculateMedian(values) {
+      const sorted = [...values].sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0 
+        ? (sorted[middle - 1] + sorted[middle]) / 2 
+        : sorted[middle];
+    }
+
+    function calculateMode(values) {
+      const frequency = {};
+      values.forEach(val => {
+        frequency[val] = (frequency[val] || 0) + 1;
+      });
+      
+      let maxFreq = 0;
+      let modes = [];
+      
+      for (const val in frequency) {
+        if (frequency[val] > maxFreq) {
+          modes = [parseFloat(val)];
+          maxFreq = frequency[val];
+        } else if (frequency[val] === maxFreq) {
+          modes.push(parseFloat(val));
+        }
+      }
+      
+      return modes.length === values.length ? "-" : modes.join(", ");
+    }
+
+    function calculateMin(values) {
+      return Math.min(...values);
+    }
+
+    function calculateMax(values) {
+      return Math.max(...values);
+    }
+
+    function getValuesFromTable(field) {
+      const table = document.querySelector("#tempHumTable tbody");
+      const rows = table.querySelectorAll("tr");
+      const values = [];
+      
+      rows.forEach(row => {
+        const index = fieldList.indexOf(field);
+        const cell = row.cells[Math.floor(index / 2)];
+        if (cell && cell.textContent !== "-") {
+          values.push(parseFloat(cell.textContent));
+        }
+      });
+      
+      return values;
+    }
+
+    function getSD1ValuesFromTable() {
+      const table = document.querySelector("#sd1Table tbody");
+      const rows = table.querySelectorAll("tr");
+      const values = [];
+      
+      rows.forEach(row => {
+        const cell = row.cells[1];
+        if (cell && cell.textContent !== "-") {
+          values.push(parseFloat(cell.textContent));
+        }
+      });
+      
+      return values;
+    }
+
+    document.getElementById("calculateBtn").onclick = function() {
+      const statsTable = document.querySelector("#statsTable tbody");
+      statsTable.innerHTML = "";
+      
+      const fieldsToCalculate = [
+        "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8",
+        "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8",
+        "SD1"
+      ];
+      
+      fieldsToCalculate.forEach(field => {
+        let values = [];
+        
+        if (field === "SD1") {
+          values = getSD1ValuesFromTable();
+        } else {
+          values = getValuesFromTable(field);
+        }
+        
+        if (values.length === 0) return;
+        
+        const row = document.createElement("tr");
+        
+        // Alan adı
+        const fieldCell = document.createElement("td");
+        fieldCell.textContent = field;
+        row.appendChild(fieldCell);
+        
+        // Ortalama
+        const meanCell = document.createElement("td");
+        meanCell.textContent = calculateMean(values).toFixed(2);
+        row.appendChild(meanCell);
+        
+        // Standart Sapma
+        const stdDevCell = document.createElement("td");
+        stdDevCell.textContent = calculateStdDev(values).toFixed(2);
+        row.appendChild(stdDevCell);
+        
+        // Medyan
+        const medianCell = document.createElement("td");
+        medianCell.textContent = calculateMedian(values).toFixed(2);
+        row.appendChild(medianCell);
+        
+        // Mod
+        const modeCell = document.createElement("td");
+        modeCell.textContent = calculateMode(values);
+        row.appendChild(modeCell);
+        
+        // Minimum
+        const minCell = document.createElement("td");
+        minCell.textContent = calculateMin(values).toFixed(2);
+        row.appendChild(minCell);
+        
+        // Maksimum
+        const maxCell = document.createElement("td");
+        maxCell.textContent = calculateMax(values).toFixed(2);
+        row.appendChild(maxCell);
+        
+        statsTable.appendChild(row);
+      });
+    };
+
     document.getElementById("startBtn").onclick = () => {
       if (!isRunning) {
         fetchData();
@@ -473,6 +635,7 @@
       document.getElementById("pauseBtn").disabled = true;
       document.getElementById("resumeBtn").disabled = false;
       document.getElementById("saveBtn").disabled = false;
+      document.getElementById("calculateBtn").disabled = false;
     };
 
     document.getElementById("resumeBtn").onclick = () => {
@@ -482,6 +645,7 @@
         document.getElementById("pauseBtn").disabled = false;
         document.getElementById("resumeBtn").disabled = true;
         document.getElementById("saveBtn").disabled = true;
+        document.getElementById("calculateBtn").disabled = true;
       }
     };
 
@@ -490,96 +654,100 @@
     };
 
     document.getElementById("saveBtn").onclick = async () => {
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF("p", "mm", "a4");
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
 
-  // Grafik çiftleri
-  const chartPairs = [
-    ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
-    ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
-  ];
+      // Grafik çiftleri
+      const chartPairs = [
+        ["T1", "H1"], ["T2", "H2"], ["T3", "H3"], ["T4", "H4"],
+        ["T5", "H5"], ["T6", "H6"], ["T7", "H7"], ["T8", "H8"]
+      ];
 
-  // Grafik boyutları ve konumları için ayarlar
-  const chartWidth = 85;
-  const chartHeight = 40;
-  const marginTop = 15;
-  const marginLeft = 12;
-  const gapX = 10; // Yatay boşluk
-  const gapY = 15; // Dikey boşluk
-  const labelOffset = 5; // Etiketler için boşluk
+      // Grafik boyutları ve konumları için ayarlar
+      const chartWidth = 85;
+      const chartHeight = 40;
+      const marginTop = 15;
+      const marginLeft = 12;
+      const gapX = 10; // Yatay boşluk
+      const gapY = 15; // Dikey boşluk
+      const labelOffset = 5; // Etiketler için boşluk
 
-  // Her sayfada 4 grafik (2x2 düzen)
-  for (let page = 0; page < 2; page++) {
-    if (page > 0) pdf.addPage();
-    
-    for (let row = 0; row < 2; row++) {
-      for (let col = 0; col < 2; col++) {
-        const pairIndex = page * 4 + row * 2 + col;
-        if (pairIndex >= chartPairs.length) continue;
+      // Her sayfada 4 grafik (2x2 düzen)
+      for (let page = 0; page < 2; page++) {
+        if (page > 0) pdf.addPage();
         
-        const [temp, hum] = chartPairs[pairIndex];
-        const tempCanvas = document.getElementById(temp);
-        const humCanvas = document.getElementById(hum);
+        for (let row = 0; row < 2; row++) {
+          for (let col = 0; col < 2; col++) {
+            const pairIndex = page * 4 + row * 2 + col;
+            if (pairIndex >= chartPairs.length) continue;
+            
+            const [temp, hum] = chartPairs[pairIndex];
+            const tempCanvas = document.getElementById(temp);
+            const humCanvas = document.getElementById(hum);
 
-        const tempImg = tempCanvas.toDataURL("image/png", 1.0);
-        const humImg = humCanvas.toDataURL("image/png", 1.0);
+            const tempImg = tempCanvas.toDataURL("image/png", 1.0);
+            const humImg = humCanvas.toDataURL("image/png", 1.0);
 
-        // Pozisyon hesaplamaları
-        const x1 = marginLeft + col * (chartWidth + gapX);
-        const x2 = x1;
-        const y1 = marginTop + row * (chartHeight * 2 + gapY * 1.5);
-        const y2 = y1 + chartHeight + gapY/2;
+            // Pozisyon hesaplamaları
+            const x1 = marginLeft + col * (chartWidth + gapX);
+            const x2 = x1;
+            const y1 = marginTop + row * (chartHeight * 2 + gapY * 1.5);
+            const y2 = y1 + chartHeight + gapY/2;
 
-        // Grafik etiketleri
-        pdf.setFontSize(10);
-        pdf.text(temp, x1 + labelOffset, y1 - labelOffset);
-        pdf.text(hum, x2 + labelOffset, y2 - labelOffset);
+            // Grafik etiketleri
+            pdf.setFontSize(10);
+            pdf.text(temp, x1 + labelOffset, y1 - labelOffset);
+            pdf.text(hum, x2 + labelOffset, y2 - labelOffset);
 
-        // Grafikler
-        pdf.addImage(tempImg, "PNG", x1, y1, chartWidth, chartHeight);
-        pdf.addImage(humImg, "PNG", x2, y2, chartWidth, chartHeight);
+            // Grafikler
+            pdf.addImage(tempImg, "PNG", x1, y1, chartWidth, chartHeight);
+            pdf.addImage(humImg, "PNG", x2, y2, chartWidth, chartHeight);
+          }
+        }
       }
-    }
-  }
 
-  // HS1 ve SD1 grafikleri (tek sayfada yan yana)
-  pdf.addPage();
-  
-  const hs1Canvas = document.getElementById("HS1");
-  const sd1Canvas = document.getElementById("SD1");
+      // HS1 ve SD1 grafikleri (tek sayfada yan yana)
+      pdf.addPage();
+      
+      const hs1Canvas = document.getElementById("HS1");
+      const sd1Canvas = document.getElementById("SD1");
 
-  const hs1Img = hs1Canvas.toDataURL("image/png", 1.0);
-  const sd1Img = sd1Canvas.toDataURL("image/png", 1.0);
+      const hs1Img = hs1Canvas.toDataURL("image/png", 1.0);
+      const sd1Img = sd1Canvas.toDataURL("image/png", 1.0);
 
-  // HS1 ve SD1 için konumlandırma
-  const extraChartY = 20;
-  pdf.setFontSize(10);
-  pdf.text("HS1", marginLeft + labelOffset, extraChartY - labelOffset);
-  pdf.text("SD1", marginLeft + chartWidth + gapX + labelOffset, extraChartY - labelOffset);
+      // HS1 ve SD1 için konumlandırma
+      const extraChartY = 20;
+      pdf.setFontSize(10);
+      pdf.text("HS1", marginLeft + labelOffset, extraChartY - labelOffset);
+      pdf.text("SD1", marginLeft + chartWidth + gapX + labelOffset, extraChartY - labelOffset);
 
-  pdf.addImage(hs1Img, "PNG", marginLeft, extraChartY, chartWidth, chartHeight);
-  pdf.addImage(sd1Img, "PNG", marginLeft + chartWidth + gapX, extraChartY, chartWidth, chartHeight);
+      pdf.addImage(hs1Img, "PNG", marginLeft, extraChartY, chartWidth, chartHeight);
+      pdf.addImage(sd1Img, "PNG", marginLeft + chartWidth + gapX, extraChartY, chartWidth, chartHeight);
 
-  // Tablolar (öncekiyle aynı)
-  pdf.addPage();
-  const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
-  const dht22Img = dht22Table.toDataURL("image/png");
-  pdf.addImage(dht22Img, "PNG", 10, 10, 190, dht22Table.height * 190 / dht22Table.width);
-  
-  pdf.addPage();
-  const sd1Table = await html2canvas(document.querySelector("#sd1Table"));
-  const hs1Table = await html2canvas(document.querySelector("#hs1Table"));
-  pdf.addImage(sd1Table.toDataURL("image/png"), "PNG", 10, 10, 90, sd1Table.height * 90 / sd1Table.width);
-  pdf.addImage(hs1Table.toDataURL("image/png"), "PNG", 110, 10, 90, hs1Table.height * 90 / hs1Table.width);
+      // Tablolar (öncekiyle aynı)
+      pdf.addPage();
+      const dht22Table = await html2canvas(document.querySelector("#tempHumTable"));
+      const dht22Img = dht22Table.toDataURL("image/png");
+      pdf.addImage(dht22Img, "PNG", 10, 10, 190, dht22Table.height * 190 / dht22Table.width);
+      
+      pdf.addPage();
+      const sd1Table = await html2canvas(document.querySelector("#sd1Table"));
+      const hs1Table = await html2canvas(document.querySelector("#hs1Table"));
+      pdf.addImage(sd1Table.toDataURL("image/png"), "PNG", 10, 10, 90, sd1Table.height * 90 / sd1Table.width);
+      pdf.addImage(hs1Table.toDataURL("image/png"), "PNG", 110, 10, 90, hs1Table.height * 90 / hs1Table.width);
 
-  pdf.save("veriler.pdf");
-};
+      // İstatistik tablosunu PDF'e ekleme
+      pdf.addPage();
+      const statsTable = await html2canvas(document.querySelector("#statsTable"));
+      pdf.addImage(statsTable.toDataURL("image/png"), "PNG", 10, 10, 190, statsTable.height * 190 / statsTable.width);
+
+      pdf.save("veriler.pdf");
+    };
 
     createCharts();
   </script>
 </body>
 </html>
-
 
 
 

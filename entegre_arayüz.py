@@ -35,29 +35,27 @@ def write_dht_to_csv(data):
     with open(fname, 'a', newline='') as f:
         writer = csv.writer(f)
         if not exists:
-            header = ["time"] + [f"T{i}" for i in range(1,9)] + [f"H{i}" for i in range(1,9)]
-            writer.writerow(header)
-        row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")] + [data.get(f'T{i}') for i in range(1,9)] + [data.get(f'H{i}') for i in range(1,9)]
-        writer.writerow(row)
-
-def write_dht_to_csv(data):
-    fname = os.path.join(DESKTOP_PATH, "dht_data.csv")
-    exists = os.path.isfile(fname)
-    with open(fname, 'a', newline='') as f:
-        writer = csv.writer(f)
-        if not exists:
-            # Başlıkları da yeni sıraya göre düzenle
+            # Başlıkları T1,H1,T2,H2,... şeklinde oluştur
             header = ["time"] + [f"{x}{i}" for i in range(1,9) for x in ['T', 'H']]
             writer.writerow(header)
-        # Verileri T1,H1,T2,H2,... şeklinde sırala
+        # Verileri T1,H1,T2,H2,... sırasıyla yaz
         row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
         for i in range(1, 9):
             row.extend([data.get(f'T{i}'), data.get(f'H{i}')])
         writer.writerow(row)
 
+def write_sd_to_csv(value):
+    fname = os.path.join(DESKTOP_PATH, "flow_data.csv")
+    exists = os.path.isfile(fname)
+    with open(fname, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not exists:
+            writer.writerow(["time", "flow"])
+        writer.writerow([datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), value])
+
 def send_dht_to_sheets(data):
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # T1,H1,T2,H2,... şeklinde sırala
+    # Verileri T1,H1,T2,H2,... şeklinde sırala
     values = [ts]
     for i in range(1, 9):
         values.extend([data.get(f'T{i}'), data.get(f'H{i}')])
